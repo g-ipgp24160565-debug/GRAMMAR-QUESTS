@@ -1,0 +1,2246 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>3D Grammar Quest: Realm of Words</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Three.js Library -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <!-- FontAwesome Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Fredoka+One&family=Quicksand:wght@500;600;700&display=swap');
+        
+        body {
+            font-family: 'Quicksand', sans-serif;
+            user-select: none;
+            -webkit-user-select: none;
+            touch-action: none;
+            overflow: hidden;
+            background-color: #090d16;
+            color: #ffffff;
+        }
+
+        .font-game {
+            font-family: 'Fredoka One', cursive;
+        }
+
+        /* Crosshair */
+        #crosshair {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            width: 18px;
+            height: 18px;
+            pointer-events: none;
+            z-index: 20;
+            transition: transform 0.15s ease, border-color 0.2s;
+        }
+        #crosshair::before, #crosshair::after {
+            content: '';
+            position: absolute;
+            background: rgba(255, 255, 255, 0.9);
+            border-radius: 2px;
+            box-shadow: 0 0 8px rgba(0,0,0,0.8);
+        }
+        #crosshair::before { top: 8px; left: 0; width: 18px; height: 2px; }
+        #crosshair::after { top: 0; left: 8px; width: 2px; height: 18px; }
+
+        #crosshair.active {
+            transform: translate(-50%, -50%) scale(1.4) rotate(45deg);
+        }
+        #crosshair.active::before, #crosshair.active::after {
+            background: #facc15;
+            box-shadow: 0 0 12px #facc15, 0 0 20px #eab308;
+        }
+
+        /* UI Overlay Blur backdrop */
+        .glass-panel {
+            background: rgba(15, 23, 42, 0.88);
+            backdrop-filter: blur(16px);
+            border: 2px solid rgba(255, 255, 255, 0.18);
+            box-shadow: 0 20px 50px rgba(0,0,0,0.6);
+        }
+
+        .touch-zone {
+            touch-action: none;
+        }
+
+        /* Floating Score Text Overlay */
+        .score-popup {
+            position: absolute;
+            pointer-events: none;
+            font-family: 'Fredoka One', cursive;
+            font-size: 1.5rem;
+            color: #facc15;
+            text-shadow: 0 0 10px rgba(250, 204, 21, 0.8), 2px 2px 0 #000;
+            animation: floatUpFade 1.2s ease-out forwards;
+            z-index: 30;
+        }
+
+        @keyframes floatUpFade {
+            0% { opacity: 1; transform: translateY(0) scale(0.8); }
+            50% { opacity: 1; transform: translateY(-30px) scale(1.2); }
+            100% { opacity: 0; transform: translateY(-60px) scale(1); }
+        }
+
+        /* Glow Effects */
+        .glow-crystal-1 { filter: drop-shadow(0 0 15px #3b82f6); }
+        .glow-crystal-2 { filter: drop-shadow(0 0 15px #10b981); }
+        .glow-crystal-3 { filter: drop-shadow(0 0 15px #a855f7); }
+
+        /* Keyframes */
+        @keyframes float {
+            0%, 100% { transform: translateY(0px); }
+            50% { transform: translateY(-8px); }
+        }
+        .animate-float { animation: float 3s ease-in-out infinite; }
+
+        @keyframes pulseGlow {
+            0%, 100% { opacity: 0.8; transform: scale(1); }
+            50% { opacity: 1; transform: scale(1.05); }
+        }
+        .animate-pulse-glow { animation: pulseGlow 2s ease-in-out infinite; }
+
+        /* Custom Scrollbar */
+        ::-webkit-scrollbar { width: 6px; }
+        ::-webkit-scrollbar-track { background: rgba(0,0,0,0.2); }
+        ::-webkit-scrollbar-thumb { background: #3b82f6; border-radius: 3px; }
+
+
+        /* Adventure polish: layered sky, luminous UI, and a cinematic menu card */
+        body { background: radial-gradient(ellipse at 50% 0%, #263c79 0%, #090d16 68%); }
+        .glass-panel {
+            background: linear-gradient(135deg, rgba(19, 29, 59, .91), rgba(9, 15, 34, .88));
+            border-color: rgba(147, 197, 253, .25);
+            box-shadow: 0 18px 55px rgba(0,0,0,.42), inset 0 1px 0 rgba(255,255,255,.09);
+        }
+        #startModal > div {
+            background:
+              radial-gradient(circle at 8% 8%, rgba(96,165,250,.22), transparent 32%),
+              radial-gradient(circle at 95% 90%, rgba(192,132,252,.2), transparent 35%),
+              linear-gradient(145deg, rgba(19,29,59,.97), rgba(10,13,31,.97));
+            border: 1px solid rgba(165,180,252,.55);
+            box-shadow: 0 0 0 1px rgba(255,255,255,.04), 0 28px 90px rgba(0,0,0,.65), 0 0 45px rgba(99,102,241,.18);
+        }
+        #startModal > div::before {
+            content: ''; position: absolute; inset: 0; pointer-events: none; opacity: .28;
+            background-image: radial-gradient(#fff 1px, transparent 1px);
+            background-size: 31px 31px;
+            mask-image: linear-gradient(to bottom, black, transparent 75%);
+        }
+        #startModal button, #challengeModal button, #rewardModal button, #victoryModal button {
+            transition: transform .18s ease, filter .18s ease, box-shadow .18s ease;
+        }
+        #startModal button:hover, #challengeModal button:hover, #rewardModal button:hover, #victoryModal button:hover {
+            filter: brightness(1.13);
+            box-shadow: 0 8px 25px rgba(99,102,241,.18);
+        }
+        #hud .glass-panel { backdrop-filter: blur(18px) saturate(1.25); }
+        #objectiveProgress { box-shadow: 0 0 12px rgba(129,140,248,.75); }
+        #crosshair { filter: drop-shadow(0 0 5px rgba(96,165,250,.8)); }
+        @media (max-width: 700px) {
+            #hud { padding: 10px; }
+            #hud .glass-panel { border-radius: 14px; }
+            #startModal > div { max-height: 94vh; overflow-y: auto; }
+        }
+
+        /* Extra polish: clearer focus states, readable word puzzles and magical ambience */
+        button:focus-visible { outline: 3px solid #facc15; outline-offset: 3px; }
+        #wordBank button:not(:disabled) { box-shadow: 0 4px 14px rgba(99,102,241,.18); }
+        #wordBank button:not(:disabled):hover { transform: translateY(-2px); filter: brightness(1.15); }
+        #constructedSentence { background-image: radial-gradient(circle at 15% 20%, rgba(99,102,241,.12), transparent 45%); }
+        #challengeModal .glass-panel { max-height: 92dvh; overflow-y: auto; scrollbar-width: thin; scrollbar-color: #6366f1 #0f172a; }
+        @media (prefers-reduced-motion: reduce) {
+            *, *::before, *::after { animation-duration: .01ms !important; animation-iteration-count: 1 !important; scroll-behavior: auto !important; transition-duration: .01ms !important; }
+        }
+    </style>
+</head>
+<body class="w-full h-screen overflow-hidden text-white select-none">
+
+    <!-- 3D Canvas -->
+    <canvas id="gameCanvas" class="w-full h-full absolute inset-0 z-0"></canvas>
+
+    <!-- Floating Score Popups Container -->
+    <div id="popupContainer" class="absolute inset-0 pointer-events-none z-30"></div>
+
+    <!-- First Person Crosshair -->
+    <div id="crosshair"></div>
+
+    <!-- Interaction Prompt -->
+    <div id="interactionPrompt" class="hidden absolute top-2/3 left-1/2 -translate-x-1/2 -translate-y-1/2 z-20 pointer-events-none transition-all duration-200">
+        <div class="glass-panel px-6 py-3 rounded-full flex items-center gap-3 border-2 border-yellow-400/80 shadow-lg animate-bounce">
+            <span class="bg-yellow-400 text-slate-900 px-2.5 py-1 rounded-lg text-sm font-bold shadow font-game">E</span>
+            <span id="promptText" class="text-sm md:text-base font-semibold text-yellow-100">Talk to Villager</span>
+        </div>
+    </div>
+
+    <!-- HUD Overlay -->
+    <div id="hud" class="absolute inset-0 z-10 pointer-events-none p-4 md:p-6 flex flex-col justify-between">
+        <!-- Top Bar -->
+        <div class="flex justify-between items-start gap-4">
+            <!-- Level Badges -->
+            <div class="flex gap-2 md:gap-3 pointer-events-auto">
+                <div id="badge-lvl-1" class="glass-panel px-3 py-2 md:px-4 md:py-2.5 rounded-2xl flex items-center gap-2 border-blue-500/50">
+                    <i class="fa-solid me-1 fa-house-chimney text-blue-400 text-sm md:text-base"></i>
+                    <div>
+                        <div class="text-[10px] text-gray-400 font-bold uppercase tracking-wider">Lvl 1</div>
+                        <div class="text-xs md:text-sm font-bold text-blue-200">Village</div>
+                    </div>
+                    <i id="status-lvl-1" class="fa-solid fa-lock text-gray-400 text-xs ml-1"></i>
+                </div>
+
+                <div id="badge-lvl-2" class="glass-panel px-3 py-2 md:px-4 md:py-2.5 rounded-2xl flex items-center gap-2 border-emerald-500/30 opacity-60">
+                    <i class="fa-solid me-1 fa-tree text-emerald-400 text-sm md:text-base"></i>
+                    <div>
+                        <div class="text-[10px] text-gray-400 font-bold uppercase tracking-wider">Lvl 2</div>
+                        <div class="text-xs md:text-sm font-bold text-emerald-200">Forest</div>
+                    </div>
+                    <i id="status-lvl-2" class="fa-solid fa-lock text-gray-400 text-xs ml-1"></i>
+                </div>
+
+                <div id="badge-lvl-3" class="glass-panel px-3 py-2 md:px-4 md:py-2.5 rounded-2xl flex items-center gap-2 border-purple-500/30 opacity-60">
+                    <i class="fa-solid me-1 fa-chess-rook text-purple-400 text-sm md:text-base"></i>
+                    <div>
+                        <div class="text-[10px] text-gray-400 font-bold uppercase tracking-wider">Lvl 3</div>
+                        <div class="text-xs md:text-sm font-bold text-purple-200">Castle</div>
+                    </div>
+                    <i id="status-lvl-3" class="fa-solid fa-lock text-gray-400 text-xs ml-1"></i>
+                </div>
+            </div>
+
+            <!-- Score, Streak, Sound Toggle & Controls -->
+            <div class="flex items-center gap-3 pointer-events-auto">
+                <!-- Multiplier Badge -->
+                <div id="streakBadge" class="glass-panel px-3 py-2 rounded-2xl hidden items-center gap-1.5 border-orange-500/50 bg-orange-950/40 animate-pulse">
+                    <i class="fa-solid fa-fire text-orange-400 text-sm"></i>
+                    <span id="streakCount" class="text-xs font-bold text-orange-300 font-game">x1.0</span>
+                </div>
+
+                <div class="glass-panel px-4 py-2.5 rounded-2xl flex items-center gap-3">
+                    <i class="fa-solid fa-gem text-amber-400 text-lg md:text-xl animate-bounce"></i>
+                    <div>
+                        <div class="text-[10px] text-gray-400 font-bold uppercase tracking-wider">Score</div>
+                        <div id="scoreDisplay" class="text-base md:text-lg font-bold text-amber-300 font-game">0 pts</div>
+                    </div>
+                </div>
+
+                <div class="glass-panel px-3 py-2.5 rounded-2xl flex items-center gap-2">
+                    <span id="crystal-1" class="text-xl opacity-30 transition-all duration-500">💎</span>
+                    <span id="crystal-2" class="text-xl opacity-30 transition-all duration-500">❇️</span>
+                    <span id="crystal-3" class="text-xl opacity-30 transition-all duration-500">🔮</span>
+                </div>
+
+                <!-- Audio Toggle -->
+                <button id="audioToggleBtn" class="glass-panel p-3 rounded-2xl hover:bg-slate-700/60 active:scale-95 transition pointer-events-auto" title="Toggle Sound Effects">
+                    <i id="audioIcon" class="fa-solid fa-volume-high text-lg text-gray-200"></i>
+                </button>
+
+                <button id="menuBtn" class="glass-panel p-3 rounded-2xl hover:bg-slate-700/60 active:scale-95 transition pointer-events-auto" title="Main Menu">
+                    <i class="fa-solid fa-bars text-lg text-gray-200"></i>
+                </button>
+            </div>
+        </div>
+
+        <!-- Bottom Bar / Objective Info & Mini Radar -->
+        <div class="flex justify-between items-end">
+            <!-- Quest Tracker -->
+            <div class="glass-panel p-3 md:p-4 rounded-2xl max-w-sm pointer-events-auto border-indigo-500/40">
+                <div class="flex items-center justify-between gap-2 mb-1">
+                    <div class="flex items-center gap-2">
+                        <i class="fa-solid fa-compass text-indigo-400 animate-spin" style="animation-duration: 8s;"></i>
+                        <span class="text-xs font-bold text-indigo-300 uppercase tracking-wider">Current Objective</span>
+                    </div>
+                    <!-- Mini Radar Canvas -->
+                    <canvas id="radarCanvas" width="38" height="38" class="rounded-full bg-slate-900 border-2 border-indigo-400/60 shadow"></canvas>
+                </div>
+                <div id="objectiveText" class="text-sm text-gray-200 font-medium">Talk to NPC Guide near the entrance to begin learning.</div>
+                <!-- Progress bar inside tracker -->
+                <div class="w-full bg-slate-800 rounded-full h-2 mt-2 overflow-hidden border border-slate-700">
+                    <div id="objectiveProgress" class="bg-gradient-to-r from-blue-500 via-indigo-500 to-purple-500 h-full w-0 transition-all duration-500"></div>
+                </div>
+            </div>
+
+            <!-- On-screen Tutorial Hint -->
+            <div id="movementHint" class="hidden md:flex glass-panel px-4 py-2 rounded-xl items-center gap-3 text-xs text-gray-300 shadow-lg">
+                <span><kbd class="px-2 py-0.5 bg-slate-700 rounded text-yellow-300 font-bold">W</kbd><kbd class="px-2 py-0.5 bg-slate-700 rounded text-yellow-300 font-bold">A</kbd><kbd class="px-2 py-0.5 bg-slate-700 rounded text-yellow-300 font-bold">S</kbd><kbd class="px-2 py-0.5 bg-slate-700 rounded text-yellow-300 font-bold">D</kbd> Move</span>
+                <span>•</span>
+                <span><kbd class="px-2 py-0.5 bg-slate-700 rounded text-yellow-300 font-bold">Space</kbd> Jump</span>
+                <span>•</span>
+                <span><kbd class="px-2 py-0.5 bg-slate-700 rounded text-yellow-300 font-bold">Mouse</kbd> Look</span>
+                <span>•</span>
+                <span><kbd class="px-2 py-0.5 bg-slate-700 rounded text-yellow-300 font-bold">E</kbd> Interact</span>
+            </div>
+        </div>
+    </div>
+
+    <!-- Touch Joysticks / Controls (Mobile only) -->
+    <div id="touchControls" class="md:hidden absolute inset-0 pointer-events-none z-10 flex justify-between p-6 items-end">
+        <!-- Left Joystick Zone for Movement -->
+        <div id="joystickZone" class="w-36 h-36 bg-white/5 border border-white/20 rounded-full relative pointer-events-auto touch-zone flex items-center justify-center">
+            <div id="joystickKnob" class="w-14 h-14 bg-indigo-500/60 border-2 border-indigo-300 rounded-full shadow-lg absolute"></div>
+        </div>
+        <!-- Right Mobile Controls -->
+        <div class="flex gap-3 pointer-events-auto">
+            <button id="mobileJumpBtn" class="w-14 h-14 bg-indigo-600/80 border-2 border-indigo-300 rounded-full text-white font-bold text-xl shadow-xl active:scale-95 flex items-center justify-center">
+                🚀
+            </button>
+            <button id="mobileInteractBtn" class="w-16 h-16 bg-yellow-500/80 border-2 border-yellow-300 rounded-full text-white font-bold text-2xl shadow-xl active:scale-95 flex items-center justify-center">
+                👋
+            </button>
+        </div>
+    </div>
+
+    <!-- START / MAIN MENU MODAL -->
+    <div id="startModal" class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-md">
+        <div class="glass-panel max-w-lg w-full rounded-3xl p-6 md:p-8 text-center border-indigo-500/50 shadow-2xl relative overflow-hidden">
+            <div class="absolute -top-10 -right-10 w-40 h-40 bg-indigo-500/20 rounded-full blur-2xl"></div>
+            
+            <div class="inline-flex p-4 bg-gradient-to-br from-indigo-500 to-purple-600 rounded-3xl mb-4 shadow-lg text-4xl animate-pulse-glow">
+                🏰
+            </div>
+
+            <h1 class="text-3xl md:text-4xl font-extrabold font-game text-transparent bg-clip-text bg-gradient-to-r from-blue-400 via-indigo-300 to-purple-400 mb-2">
+                GRAMMAR QUEST 3D
+            </h1>
+            <p class="text-gray-300 text-sm mb-6 leading-relaxed">
+                Step into an enhanced 3D adventure! Explore 3 mystical realms, interact with characters, master grammar challenges, defeat the Boss Grammarian, and collect all 3 ancient Grammar Crystals!
+            </p>
+
+            <!-- Level Selector Box -->
+            <div class="space-y-3 mb-6">
+                <button id="btnSelectLvl1" class="w-full p-4 rounded-2xl bg-gradient-to-r from-blue-600/40 to-indigo-600/40 border border-blue-400/50 hover:border-blue-300 flex items-center justify-between text-left transition hover:scale-[1.02] active:scale-95">
+                    <div class="flex items-center gap-3">
+                        <span class="text-2xl">🏡</span>
+                        <div>
+                            <div class="font-bold text-blue-200">Level 1: Grammar Village</div>
+                            <div class="text-xs text-gray-400">Common Nouns, Verbs & Sentences</div>
+                        </div>
+                    </div>
+                    <span class="text-xs bg-blue-500 text-white font-bold px-3 py-1 rounded-full">Unlocked</span>
+                </button>
+
+                <button id="btnSelectLvl2" disabled class="w-full p-4 rounded-2xl bg-slate-800/40 border border-slate-700 opacity-50 flex items-center justify-between text-left cursor-not-allowed">
+                    <div class="flex items-center gap-3">
+                        <span class="text-2xl">🌲</span>
+                        <div>
+                            <div class="font-bold text-emerald-300">Level 2: Mysterious Forest</div>
+                            <div class="text-xs text-gray-400">Tenses, Adjectives & Cloze Paths</div>
+                        </div>
+                    </div>
+                    <span id="lvl2StatusBadge" class="text-xs bg-slate-700 text-gray-400 font-bold px-3 py-1 rounded-full">Locked</span>
+                </button>
+
+                <button id="btnSelectLvl3" disabled class="w-full p-4 rounded-2xl bg-slate-800/40 border border-slate-700 opacity-50 flex items-center justify-between text-left cursor-not-allowed">
+                    <div class="flex items-center gap-3">
+                        <span class="text-2xl">👑</span>
+                        <div>
+                            <div class="font-bold text-purple-300">Level 3: Grammar Castle</div>
+                            <div class="text-xs text-gray-400">Sentence Building & Boss Challenge</div>
+                        </div>
+                    </div>
+                    <span id="lvl3StatusBadge" class="text-xs bg-slate-700 text-gray-400 font-bold px-3 py-1 rounded-full">Locked</span>
+                </button>
+            </div>
+
+            <button id="startExploreBtn" class="w-full py-4 bg-gradient-to-r from-blue-500 via-indigo-600 to-purple-600 rounded-2xl font-bold font-game text-lg text-white shadow-xl hover:brightness-110 active:scale-95 transition">
+                START EXPLORING 🚀
+            </button>
+        </div>
+    </div>
+
+    <!-- DIALOGUE & GRAMMAR CHALLENGE MODAL -->
+    <div id="challengeModal" class="hidden fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/75 backdrop-blur-md">
+        <div class="glass-panel max-w-xl w-full rounded-3xl p-6 md:p-8 border-yellow-500/50 shadow-2xl relative">
+            <!-- NPC Header -->
+            <div class="flex items-center gap-4 mb-4 pb-4 border-b border-slate-700/60">
+                <div id="npcAvatar" class="w-14 h-14 rounded-2xl bg-indigo-600/40 border-2 border-yellow-400 flex items-center justify-center text-3xl shadow">
+                    🧙‍♂️
+                </div>
+                <div>
+                    <h3 id="npcName" class="text-xl font-bold text-yellow-300 font-game">Elder Wordsmith</h3>
+                    <p id="npcRole" class="text-xs text-gray-400">Guardian of Grammar</p>
+                </div>
+            </div>
+
+            <!-- Dialogue/Question Container -->
+            <div id="dialogueContent" class="space-y-4">
+                <p id="npcDialogueText" class="text-gray-200 text-sm md:text-base leading-relaxed bg-slate-900/70 p-4 rounded-2xl border border-slate-700 shadow-inner">
+                    Welcome traveler! Before you can cross this bridge, show me your mastery over action verbs!
+                </p>
+
+                <!-- Grammar Options Container -->
+                <div id="optionsContainer" class="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2">
+                    <!-- Buttons injected dynamically -->
+                </div>
+
+                <!-- Word Reorder Puzzle Container (Level 3) -->
+                <div id="reorderContainer" class="hidden space-y-3 pt-2">
+                    <div id="constructedSentence" class="min-h-[52px] bg-slate-950/80 p-3 rounded-xl border border-indigo-500/40 flex flex-wrap gap-2 items-center text-sm font-bold text-yellow-200">
+                        <!-- Placed words will appear here -->
+                    </div>
+                    <div id="wordBank" class="flex flex-wrap gap-2 p-2 bg-slate-900/50 rounded-xl border border-slate-800">
+                        <!-- Draggable/clickable word chips injected here -->
+                    </div>
+                    <div class="grid grid-cols-2 gap-3 mt-2">
+                        <button id="resetReorderBtn" type="button" class="py-3 bg-slate-700 hover:bg-slate-600 border border-slate-500 rounded-xl font-bold text-sm transition active:scale-95">↺ RESET</button>
+                        <button id="submitReorderBtn" type="button" class="py-3 bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-500 hover:to-purple-500 rounded-xl font-bold font-game text-sm transition shadow-lg active:scale-95">SUBMIT ✨</button>
+                    </div>
+                </div>
+
+                <!-- Feedback Banner -->
+                <div id="feedbackBox" class="hidden p-3 rounded-xl text-xs md:text-sm font-semibold flex items-center gap-2"></div>
+            </div>
+
+            <!-- Close / Next Action -->
+            <div class="mt-6 flex justify-end">
+                <button id="closeChallengeBtn" class="px-5 py-2.5 bg-slate-700 hover:bg-slate-600 rounded-xl text-sm font-bold text-gray-200 transition">
+                    Leave Conversation
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- LEVEL COMPLETE / CRYSTAL REWARD MODAL -->
+    <div id="rewardModal" class="hidden fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/85 backdrop-blur-md">
+        <div class="glass-panel max-w-md w-full rounded-3xl p-6 md:p-8 text-center border-yellow-400/60 shadow-2xl relative">
+            <div id="rewardCrystalIcon" class="text-6xl mb-3 animate-bounce">
+                💎
+            </div>
+            <h2 id="rewardTitle" class="text-2xl md:text-3xl font-extrabold font-game text-yellow-300 mb-2">
+                CRYSTAL RECOVERED!
+            </h2>
+            <p id="rewardDesc" class="text-sm text-gray-300 mb-6">
+                You have successfully completed Level 1 challenges and unlocked the Grammar Crystal of Foundations!
+            </p>
+
+            <div class="bg-slate-900/80 p-4 rounded-2xl border border-slate-700 mb-6 flex justify-around">
+                <div>
+                    <div class="text-xs text-gray-400">Total Points</div>
+                    <div id="rewardScore" class="text-xl font-bold text-amber-300 font-game">+150</div>
+                </div>
+                <div class="w-px bg-slate-700"></div>
+                <div>
+                    <div class="text-xs text-gray-400">Next Stage</div>
+                    <div id="rewardNextLvl" class="text-xl font-bold text-emerald-300 font-game">Level 2</div>
+                </div>
+            </div>
+
+            <button id="nextLevelBtn" class="w-full py-3.5 bg-gradient-to-r from-yellow-500 to-amber-600 rounded-2xl font-bold font-game text-slate-950 shadow-lg hover:brightness-110 active:scale-95 transition">
+                PROCEED TO NEXT LEVEL ➔
+            </button>
+        </div>
+    </div>
+
+    <!-- FINAL VICTORY SCREEN -->
+    <div id="victoryModal" class="hidden fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/90 backdrop-blur-lg overflow-y-auto">
+        <div class="glass-panel max-w-lg w-full rounded-3xl p-6 md:p-8 text-center border-amber-400/70 shadow-2xl relative my-auto">
+            <div class="inline-flex p-4 bg-amber-500/20 rounded-full mb-3 text-5xl border border-amber-400/40 animate-pulse">
+                🏆
+            </div>
+            
+            <h1 class="text-3xl md:text-4xl font-extrabold font-game text-transparent bg-clip-text bg-gradient-to-r from-amber-300 via-yellow-200 to-amber-400 mb-1">
+                GRAMMAR CHAMPION!
+            </h1>
+            <p class="text-gray-300 text-xs md:text-sm mb-6">
+                You have vanquished the Shadow Grammarian, restored all 3 Ancient Grammar Crystals, and saved the Kingdom of Words!
+            </p>
+
+            <!-- Completed Badges Grid -->
+            <div class="grid grid-cols-3 gap-2 mb-6">
+                <div class="bg-slate-900/90 p-3 rounded-2xl border border-blue-500/40 flex flex-col items-center">
+                    <span class="text-2xl mb-1 glow-crystal-1">💎</span>
+                    <span class="text-[11px] font-bold text-blue-300">Level 1</span>
+                    <span class="text-[9px] text-gray-400">Village</span>
+                </div>
+                <div class="bg-slate-900/90 p-3 rounded-2xl border border-emerald-500/40 flex flex-col items-center">
+                    <span class="text-2xl mb-1 glow-crystal-2">❇️</span>
+                    <span class="text-[11px] font-bold text-emerald-300">Level 2</span>
+                    <span class="text-[9px] text-gray-400">Forest</span>
+                </div>
+                <div class="bg-slate-900/90 p-3 rounded-2xl border border-purple-500/40 flex flex-col items-center">
+                    <span class="text-2xl mb-1 glow-crystal-3">🔮</span>
+                    <span class="text-[11px] font-bold text-purple-300">Level 3</span>
+                    <span class="text-[9px] text-gray-400">Castle</span>
+                </div>
+            </div>
+
+            <!-- Score Breakdown -->
+            <div class="bg-slate-900/80 p-4 rounded-2xl border border-amber-500/30 mb-6 text-left space-y-2">
+                <div class="flex justify-between text-xs text-gray-300">
+                    <span>Questions Solved:</span>
+                    <span class="font-bold text-white">15 / 15</span>
+                </div>
+                <div class="flex justify-between text-xs text-gray-300">
+                    <span>Coins Collected:</span>
+                    <span id="victoryCoins" class="font-bold text-amber-300">15</span>
+                </div>
+                <div class="w-full h-px bg-slate-800 my-1"></div>
+                <div class="flex justify-between text-sm font-bold text-yellow-300">
+                    <span>Final Champion Score:</span>
+                    <span id="victoryFinalScore" class="text-lg font-game">450 pts</span>
+                </div>
+            </div>
+
+            <div class="space-y-3">
+                <button id="playAgainBtn" class="w-full py-3.5 bg-gradient-to-r from-emerald-500 to-teal-600 rounded-2xl font-bold font-game text-white shadow-lg hover:brightness-110 active:scale-95 transition">
+                    PLAY AGAIN 🔄
+                </button>
+                <button id="returnLevelSelectBtn" class="w-full py-3 bg-slate-800 hover:bg-slate-700 border border-slate-600 rounded-2xl font-semibold text-sm text-gray-200 transition">
+                    RETURN TO LEVEL SELECTION
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- MAIN GAME LOGIC -->
+    <script>
+        /* --- AUDIO SYNTHESIS ENGINE --- */
+        const SoundFX = {
+            ctx: null,
+            muted: false,
+            init() {
+                if (!this.ctx) {
+                    this.ctx = new (window.AudioContext || window.webkitAudioContext)();
+                }
+            },
+            toggleAudio() {
+                this.muted = !this.muted;
+                const icon = document.getElementById('audioIcon');
+                if (this.muted) {
+                    icon.className = "fa-solid fa-volume-xmark text-lg text-rose-400";
+                } else {
+                    icon.className = "fa-solid fa-volume-high text-lg text-gray-200";
+                }
+            },
+            playCoin() {
+                if (!this.ctx || this.muted) return;
+                const osc = this.ctx.createOscillator();
+                const gain = this.ctx.createGain();
+                osc.type = 'sine';
+                osc.frequency.setValueAtTime(987.77, this.ctx.currentTime); // B5
+                osc.frequency.exponentialRampToValueAtTime(1318.51, this.ctx.currentTime + 0.14); // E6
+                gain.gain.setValueAtTime(0.25, this.ctx.currentTime);
+                gain.gain.exponentialRampToValueAtTime(0.01, this.ctx.currentTime + 0.14);
+                osc.connect(gain);
+                gain.connect(this.ctx.destination);
+                osc.start();
+                osc.stop(this.ctx.currentTime + 0.14);
+            },
+            playJump() {
+                if (!this.ctx || this.muted) return;
+                const osc = this.ctx.createOscillator();
+                const gain = this.ctx.createGain();
+                osc.type = 'triangle';
+                osc.frequency.setValueAtTime(140, this.ctx.currentTime);
+                osc.frequency.exponentialRampToValueAtTime(380, this.ctx.currentTime + 0.16);
+                gain.gain.setValueAtTime(0.18, this.ctx.currentTime);
+                gain.gain.exponentialRampToValueAtTime(0.01, this.ctx.currentTime + 0.16);
+                osc.connect(gain);
+                gain.connect(this.ctx.destination);
+                osc.start();
+                osc.stop(this.ctx.currentTime + 0.16);
+            },
+            playCorrect() {
+                if (!this.ctx || this.muted) return;
+                const now = this.ctx.currentTime;
+                const notes = [523.25, 659.25, 783.99, 1046.50]; // C5, E5, G5, C6
+                notes.forEach((freq, idx) => {
+                    const osc = this.ctx.createOscillator();
+                    const gain = this.ctx.createGain();
+                    osc.type = 'triangle';
+                    osc.frequency.setValueAtTime(freq, now + idx * 0.08);
+                    gain.gain.setValueAtTime(0.25, now + idx * 0.08);
+                    gain.gain.exponentialRampToValueAtTime(0.01, now + idx * 0.08 + 0.25);
+                    osc.connect(gain);
+                    gain.connect(this.ctx.destination);
+                    osc.start(now + idx * 0.08);
+                    osc.stop(now + idx * 0.08 + 0.25);
+                });
+            },
+            playWrong() {
+                if (!this.ctx || this.muted) return;
+                const now = this.ctx.currentTime;
+                const osc = this.ctx.createOscillator();
+                const gain = this.ctx.createGain();
+                osc.type = 'sawtooth';
+                osc.frequency.setValueAtTime(220, now);
+                osc.frequency.linearRampToValueAtTime(120, now + 0.35);
+                gain.gain.setValueAtTime(0.25, now);
+                gain.gain.exponentialRampToValueAtTime(0.01, now + 0.35);
+                osc.connect(gain);
+                gain.connect(this.ctx.destination);
+                osc.start();
+                osc.stop(now + 0.35);
+            },
+            playWin() {
+                if (!this.ctx || this.muted) return;
+                const now = this.ctx.currentTime;
+                const notes = [440, 554.37, 659.25, 880, 1108.73];
+                notes.forEach((freq, idx) => {
+                    const osc = this.ctx.createOscillator();
+                    const gain = this.ctx.createGain();
+                    osc.type = 'sine';
+                    osc.frequency.setValueAtTime(freq, now + idx * 0.1);
+                    gain.gain.setValueAtTime(0.3, now + idx * 0.1);
+                    gain.gain.exponentialRampToValueAtTime(0.01, now + idx * 0.1 + 0.4);
+                    osc.connect(gain);
+                    gain.connect(this.ctx.destination);
+                    osc.start(now + idx * 0.1);
+                    osc.stop(now + idx * 0.1 + 0.4);
+                });
+            }
+        };
+
+        /* --- GAME STATE --- */
+        const GameState = {
+            currentLevel: 1,
+            score: 0,
+            streak: 0,
+            coinsCollected: 0,
+            unlockedLevels: { 1: true, 2: false, 3: false },
+            crystals: { 1: false, 2: false, 3: false },
+            levelProgress: {
+                1: { solved: 0, total: 5 },
+                2: { solved: 0, total: 5 },
+                3: { solved: 0, total: 5 }
+            },
+            activeNPC: null,
+            activeObject: null
+        };
+
+        /* --- GRAMMAR DATA --- */
+        const GrammarData = {
+            level1: [
+                {
+                    id: "l1_npc1",
+                    npcName: "Village Mayor Thomas",
+                    npcRole: "Grammar Guide",
+                    npcAvatar: "👨‍🌾",
+                    text: "Greetings explorer! Let us check your basic grammar. Which word in this sentence is a COMMON NOUN?\n'The happy dog chased a red ball in the park.'",
+                    options: ["chased", "dog", "happy", "in"],
+                    answer: 1,
+                    explanation: "'dog' is a common noun as it names a general animal!"
+                },
+                {
+                    id: "l1_npc2",
+                    npcName: "School Teacher Clara",
+                    npcRole: "School Mistress",
+                    npcAvatar: "👩‍🏫",
+                    text: "Hello! Can you spot the PROPER NOUN in this sentence?\n'Last Sunday, Maya visited the London Zoo.'",
+                    options: ["visited", "Sunday", "Maya", "Zoo"],
+                    answer: 2,
+                    explanation: "'Maya' (and London) are Proper Nouns because they are specific names and start with capital letters."
+                },
+                {
+                    id: "l1_npc3",
+                    npcName: "Baker Barnaby",
+                    npcRole: "Master Baker",
+                    npcAvatar: "🧑‍🍳",
+                    text: "Fresh bread! Which of these words is an ACTION VERB?\n'The children sprinted across the grassy field.'",
+                    options: ["children", "sprinted", "grassy", "field"],
+                    answer: 1,
+                    explanation: "'sprinted' is an action verb showing what the children did!"
+                },
+                {
+                    id: "l1_npc4",
+                    npcName: "Shopkeeper Susan",
+                    npcRole: "Store Owner",
+                    npcAvatar: "👩‍💼",
+                    text: "Which of the following is a grammatically COMPLETE SENTENCE?",
+                    options: [
+                        "Under the big green tree.",
+                        "The cat slept peacefully on the rug.",
+                        "Running very fast towards home.",
+                        "Bright stars in night sky."
+                    ],
+                    answer: 1,
+                    explanation: "'The cat slept peacefully on the rug.' has both a subject and a verb forming a complete thought!"
+                },
+                {
+                    id: "l1_crystal",
+                    npcName: "Grammar Crystal Pedestal",
+                    npcRole: "Level 1 Guardian Artifact",
+                    npcAvatar: "💎",
+                    text: "To unlock the Village Crystal, solve this final foundation puzzle: Identify the verb in:\n'Birds sing sweetly every morning.'",
+                    options: ["Birds", "sing", "sweetly", "morning"],
+                    answer: 1,
+                    explanation: "'sing' is the action verb performed by the birds!"
+                }
+            ],
+
+            level2: [
+                {
+                    id: "l2_npc1",
+                    npcName: "Ranger Oak",
+                    npcRole: "Forest Warden",
+                    npcAvatar: "🤠",
+                    text: "Welcome to the Mysterious Forest! Choose the correct SIMPLE PRESENT tense verb:\n'Every morning, the sun _____ in the east.'",
+                    options: ["rises", "rose", "rising", "will rise"],
+                    answer: 0,
+                    explanation: "Use simple present 'rises' for general truths and routines!"
+                },
+                {
+                    id: "l2_npc2",
+                    npcName: "Druid Fern",
+                    npcRole: "Nature Sage",
+                    npcAvatar: "🧙‍♀️",
+                    text: "Identify the correct SIMPLE PAST tense verb:\n'Yesterday, we _____ across the wooden river bridge.'",
+                    options: ["walk", "walked", "will walk", "walking"],
+                    answer: 1,
+                    explanation: "'walked' is past tense, matching 'Yesterday'."
+                },
+                {
+                    id: "l2_npc3",
+                    npcName: "Explorer Ivy",
+                    npcRole: "Pathfinder",
+                    npcAvatar: "🧭",
+                    text: "Which word in this sentence is an ADJECTIVE?\n'The brave knight entered the dark cave.'",
+                    options: ["entered", "knight", "brave", "cave"],
+                    answer: 2,
+                    explanation: "'brave' (and dark) describes a noun, making it an adjective!"
+                },
+                {
+                    id: "l2_npc4",
+                    npcName: "Bridge Gate Mechanism",
+                    npcRole: "Ancient Rune",
+                    npcAvatar: "🪨",
+                    text: "Fill in the blank with the appropriate future tense:\n'Tomorrow, our team _____ the hidden temple.'",
+                    options: ["explored", "will explore", "explores", "exploring"],
+                    answer: 1,
+                    explanation: "'will explore' correctly expresses a future action."
+                },
+                {
+                    id: "l2_crystal",
+                    npcName: "Forest Crystal Altar",
+                    npcRole: "Level 2 Guardian Artifact",
+                    npcAvatar: "❇️",
+                    text: "To claim the Forest Crystal: Which sentence uses adjectives correctly?",
+                    options: [
+                        "She wore a silk soft blue dress.",
+                        "She wore a soft blue silk dress.",
+                        "She wore a blue dress soft silk.",
+                        "She wore soft dress blue silk."
+                    ],
+                    answer: 1,
+                    explanation: "'soft blue silk dress' follows proper adjective order (opinion, color, material)."
+                }
+            ],
+
+            level3: [
+                {
+                    id: "l3_npc1",
+                    npcName: "Castle Guard Captain",
+                    npcRole: "Royal Knight",
+                    npcAvatar: "🛡️",
+                    text: "Halt! Rearrange these words to construct a correct sentence:",
+                    type: "reorder",
+                    words: ["The", "royal", "dragon", "guards", "the", "golden", "treasure."],
+                    correctOrder: ["The", "royal", "dragon", "guards", "the", "golden", "treasure."],
+                    explanation: "Proper order: Subject (The royal dragon) + Verb (guards) + Object (the golden treasure)."
+                },
+                {
+                    id: "l3_npc2",
+                    npcName: "Archivist Ezra",
+                    npcRole: "Grand Scholar",
+                    npcAvatar: "📜",
+                    text: "Identify the grammatical error in this sentence:\n'The wizard haven't found his lost spellbook yet.'",
+                    options: [
+                        "Change 'haven't' to 'hasn't'",
+                        "Change 'found' to 'find'",
+                        "Change 'his' to 'their'",
+                        "No error in this sentence"
+                    ],
+                    answer: 0,
+                    explanation: "'The wizard' is singular, so it requires singular 'hasn't'."
+                },
+                {
+                    id: "l3_npc3",
+                    npcName: "Sorcerer Vance",
+                    npcRole: "Court Magician",
+                    npcAvatar: "🧙‍♂️",
+                    text: "Reorder these jumbled words into a grammatically sound statement:",
+                    type: "reorder",
+                    words: ["Bright", "magical", "crystals", "shimmer", "in", "the", "dark."],
+                    correctOrder: ["Bright", "magical", "crystals", "shimmer", "in", "the", "dark."],
+                    explanation: "'Bright magical crystals shimmer in the dark.' The adjectives 'bright' and 'magical' describe the crystals."
+                },
+                {
+                    id: "l3_npc4",
+                    npcName: "Shadow Grammarian (Boss)",
+                    npcRole: "Realm Overlord",
+                    npcAvatar: "🦹",
+                    text: "Mwahaha! I am the Shadow Grammarian! Face my ultimate grammar test: Choose the flawless sentence!",
+                    options: [
+                        "The giant owl flew gracefully over the quiet castle.",
+                        "The giant owl fly graceful over quiet castle.",
+                        "Over quiet castle giant owl gracefully flew.",
+                        "Gracefully giant owl over quiet castle flew."
+                    ],
+                    answer: 0,
+                    explanation: "Option 1 uses proper subject, past tense verb 'flew', and adverb/adjectives correctly."
+                },
+                {
+                    id: "l3_crystal",
+                    npcName: "Royal Throne Crystal",
+                    npcRole: "Final Kingdom Artifact",
+                    npcAvatar: "🔮",
+                    text: "FINAL CHALLENGE: Assemble the final spell to restore the Kingdom's Grammar Power!",
+                    type: "reorder",
+                    words: ["Knowledge", "and", "grammar", "unlock", "the", "greatest", "power."],
+                    correctOrder: ["Knowledge", "and", "grammar", "unlock", "the", "greatest", "power."],
+                    explanation: "'Knowledge and grammar unlock the greatest power.'"
+                }
+            ]
+        };
+
+        /* --- THREE.JS ENGINE & GEOMETRY --- */
+        let scene, camera, renderer, dirLight, ambientLight;
+        let moveForward = false, moveBackward = false, moveLeft = false, moveRight = false;
+        let velocity = new THREE.Vector3();
+        let direction = new THREE.Vector3();
+        let isPointerLocked = false;
+        let clock = new THREE.Clock();
+        let interactiveObjects = [];
+        let levelMeshes = [];
+        let ambientParticles = null;
+        let cloudGroup = null;
+        let activeParticleEffects = [];
+
+        // Dynamic Lighting day/night timer
+        let dayTime = 0;
+
+        // Shared Low-Poly Geometries
+        const SharedGeometries = {
+            coin: new THREE.CylinderGeometry(0.45, 0.45, 0.14, 12),
+            npcBody: new THREE.CylinderGeometry(0.65, 0.85, 2.5, 8),
+            npcHead: new THREE.SphereGeometry(0.55, 10, 10),
+            npcIcon: new THREE.OctahedronGeometry(0.4),
+            treeTrunk: new THREE.CylinderGeometry(0.4, 0.65, 3.8, 6),
+            treeFoliage: new THREE.SphereGeometry(2.6, 7, 7),
+            pineTrunk: new THREE.CylinderGeometry(0.35, 0.65, 4.2, 6),
+            pineCones: [
+                new THREE.ConeGeometry(3.6, 3.6, 6),
+                new THREE.ConeGeometry(2.7, 3.6, 6),
+                new THREE.ConeGeometry(1.8, 3.6, 6)
+            ],
+            pedestalBase: new THREE.CylinderGeometry(1.4, 1.9, 2.4, 8),
+            pedestalGem: new THREE.OctahedronGeometry(1.1, 0),
+            rock: new THREE.DodecahedronGeometry(0.85, 0),
+            flower: new THREE.ConeGeometry(0.35, 0.45, 5),
+            auraRing: new THREE.RingGeometry(1.2, 1.8, 16)
+        };
+
+        // Shared Materials
+        const SharedMaterials = {
+            coin: new THREE.MeshStandardMaterial({ color: 0xf1c40f, metalness: 0.8, roughness: 0.2, emissive: 0xd4ac0d, emissiveIntensity: 0.3 }),
+            npcHead: new THREE.MeshStandardMaterial({ color: 0xffdbac, roughness: 0.6 }),
+            npcIcon: new THREE.MeshBasicMaterial({ color: 0xffd700 }),
+            treeTrunk: new THREE.MeshStandardMaterial({ color: 0x5c4033, roughness: 0.9 }),
+            rock: new THREE.MeshStandardMaterial({ color: 0x7f8c8d, roughness: 0.8 }),
+            flowerRed: new THREE.MeshStandardMaterial({ color: 0xe74c3c }),
+            flowerYellow: new THREE.MeshStandardMaterial({ color: 0xf1c40f })
+        };
+
+        // Jump physics & head-bobbing state
+        let canJump = true;
+        let isJumping = false;
+        let playerVelocityY = 0;
+        let bobTimer = 0;
+        const gravity = -28.0;
+        const jumpStrength = 10.8;
+
+        // Touch state
+        let touchStartX = 0, touchStartY = 0;
+        let isTouchingJoystick = false;
+
+        function init3D() {
+            const canvas = document.getElementById('gameCanvas');
+            scene = new THREE.Scene();
+            scene.background = new THREE.Color(0x87ceeb);
+            scene.fog = new THREE.FogExp2(0x87ceeb, 0.015);
+
+            // First Person Camera setup
+            camera = new THREE.PerspectiveCamera(70, window.innerWidth / window.innerHeight, 0.1, 300);
+            camera.position.set(0, 1.7, 0);
+
+            // Renderer Optimization
+            renderer = new THREE.WebGLRenderer({ canvas: canvas, antialias: true, powerPreference: "high-performance" });
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.5));
+            renderer.shadowMap.enabled = true;
+            renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+
+            // Lights
+            ambientLight = new THREE.AmbientLight(0xffffff, 0.7);
+            scene.add(ambientLight);
+
+            dirLight = new THREE.DirectionalLight(0xfffaed, 0.9);
+            dirLight.position.set(40, 60, 30);
+            dirLight.castShadow = true;
+            dirLight.shadow.mapSize.width = 1024;
+            dirLight.shadow.mapSize.height = 1024;
+            dirLight.shadow.camera.near = 0.5;
+            dirLight.shadow.camera.far = 130;
+            const d = 45;
+            dirLight.shadow.camera.left = -d;
+            dirLight.shadow.camera.right = d;
+            dirLight.shadow.camera.top = d;
+            dirLight.shadow.camera.bottom = -d;
+            scene.add(dirLight);
+
+            setupControls();
+            window.addEventListener('resize', onWindowResize);
+
+            loadLevelWorld(1);
+            animate();
+        }
+
+        function spawnFloatingScoreText(text, x, y) {
+            const container = document.getElementById('popupContainer');
+            const popup = document.createElement('div');
+            popup.className = 'score-popup';
+            popup.innerText = text;
+            popup.style.left = `${x || window.innerWidth / 2 - 30}px`;
+            popup.style.top = `${y || window.innerHeight / 2 - 40}px`;
+            container.appendChild(popup);
+            setTimeout(() => popup.remove(), 1200);
+        }
+
+        function createBurstParticles(pos, colorHex, count = 15) {
+            const geo = new THREE.BufferGeometry();
+            const positions = new Float32Array(count * 3);
+            const velocities = [];
+
+            for (let i = 0; i < count; i++) {
+                positions[i * 3] = pos.x;
+                positions[i * 3 + 1] = pos.y;
+                positions[i * 3 + 2] = pos.z;
+
+                velocities.push(new THREE.Vector3(
+                    (Math.random() - 0.5) * 6,
+                    Math.random() * 5 + 2,
+                    (Math.random() - 0.5) * 6
+                ));
+            }
+
+            geo.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+            const mat = new THREE.PointsMaterial({
+                color: colorHex,
+                size: 0.35,
+                transparent: true,
+                opacity: 1.0,
+                blending: THREE.AdditiveBlending
+            });
+
+            const pSystem = new THREE.Points(geo, mat);
+            scene.add(pSystem);
+
+            activeParticleEffects.push({
+                system: pSystem,
+                velocities: velocities,
+                life: 0.8
+            });
+        }
+
+        function triggerJump() {
+            if (canJump && !isJumping && !isModalOpen()) {
+                playerVelocityY = jumpStrength;
+                isJumping = true;
+                canJump = false;
+                SoundFX.playJump();
+            }
+        }
+
+        function setupControls() {
+            const canvas = document.getElementById('gameCanvas');
+
+            canvas.addEventListener('click', () => {
+                if (document.activeElement.tagName !== 'BUTTON' && !isModalOpen()) {
+                    canvas.requestPointerLock();
+                    SoundFX.init();
+                }
+            });
+
+            document.addEventListener('pointerlockchange', () => {
+                isPointerLocked = (document.pointerLockElement === canvas);
+            });
+
+            document.addEventListener('mousemove', (e) => {
+                if (!isPointerLocked) return;
+
+                const movementX = e.movementX || 0;
+                const movementY = e.movementY || 0;
+
+                camera.rotation.y -= movementX * 0.0035;
+                camera.rotation.x -= movementY * 0.0035;
+                camera.rotation.x = Math.max(-Math.PI / 2.2, Math.min(Math.PI / 2.2, camera.rotation.x));
+                camera.rotation.z = 0;
+            });
+
+            document.addEventListener('keydown', (e) => {
+                if (isModalOpen()) return;
+                switch (e.code) {
+                    case 'KeyW': case 'ArrowUp': moveForward = true; break;
+                    case 'KeyS': case 'ArrowDown': moveBackward = true; break;
+                    case 'KeyA': case 'ArrowLeft': moveLeft = true; break;
+                    case 'KeyD': case 'ArrowRight': moveRight = true; break;
+                    case 'Space': triggerJump(); break;
+                    case 'KeyE': interactWithTarget(); break;
+                }
+            });
+
+            document.addEventListener('keyup', (e) => {
+                switch (e.code) {
+                    case 'KeyW': case 'ArrowUp': moveForward = false; break;
+                    case 'KeyS': case 'ArrowDown': moveBackward = false; break;
+                    case 'KeyA': case 'ArrowLeft': moveLeft = false; break;
+                    case 'KeyD': case 'ArrowRight': moveRight = false; break;
+                }
+            });
+
+            // Mobile Joystick Touch Controls
+            const joystickZone = document.getElementById('joystickZone');
+            const joystickKnob = document.getElementById('joystickKnob');
+
+            joystickZone.addEventListener('touchstart', (e) => {
+                isTouchingJoystick = true;
+                const touch = e.touches[0];
+                const rect = joystickZone.getBoundingClientRect();
+                touchStartX = rect.left + rect.width / 2;
+                touchStartY = rect.top + rect.height / 2;
+                updateJoystick(touch.clientX, touch.clientY);
+            });
+
+            joystickZone.addEventListener('touchmove', (e) => {
+                if (!isTouchingJoystick) return;
+                const touch = e.touches[0];
+                updateJoystick(touch.clientX, touch.clientY);
+            });
+
+            const resetJoystick = () => {
+                isTouchingJoystick = false;
+                joystickKnob.style.transform = `translate(0px, 0px)`;
+                moveForward = moveBackward = moveLeft = moveRight = false;
+            };
+
+            joystickZone.addEventListener('touchend', resetJoystick);
+            joystickZone.addEventListener('touchcancel', resetJoystick);
+
+            function updateJoystick(clientX, clientY) {
+                const dx = clientX - touchStartX;
+                const dy = clientY - touchStartY;
+                const dist = Math.hypot(dx, dy);
+                const maxRadius = 45;
+
+                const angle = Math.atan2(dy, dx);
+                const cappedDist = Math.min(dist, maxRadius);
+
+                const knobX = Math.cos(angle) * cappedDist;
+                const knobY = Math.sin(angle) * cappedDist;
+                joystickKnob.style.transform = `translate(${knobX}px, ${knobY}px)`;
+
+                moveForward = dy < -15;
+                moveBackward = dy > 15;
+                moveLeft = dx < -15;
+                moveRight = dx > 15;
+            }
+
+            // Mobile Look
+            let lastTouchX = 0, lastTouchY = 0;
+            canvas.addEventListener('touchstart', (e) => {
+                if (e.touches.length === 1) {
+                    lastTouchX = e.touches[0].clientX;
+                    lastTouchY = e.touches[0].clientY;
+                }
+            });
+            canvas.addEventListener('touchmove', (e) => {
+                if (isModalOpen() || isTouchingJoystick) return;
+                if (e.touches.length === 1) {
+                    const deltaX = e.touches[0].clientX - lastTouchX;
+                    const deltaY = e.touches[0].clientY - lastTouchY;
+                    camera.rotation.y -= deltaX * 0.006;
+                    camera.rotation.x -= deltaY * 0.006;
+                    camera.rotation.x = Math.max(-Math.PI / 2.2, Math.min(Math.PI / 2.2, camera.rotation.x));
+                    lastTouchX = e.touches[0].clientX;
+                    lastTouchY = e.touches[0].clientY;
+                }
+            });
+
+            document.getElementById('mobileInteractBtn').addEventListener('click', interactWithTarget);
+            document.getElementById('mobileJumpBtn').addEventListener('click', triggerJump);
+            document.getElementById('audioToggleBtn').addEventListener('click', () => SoundFX.toggleAudio());
+        }
+
+        function isModalOpen() {
+            return !document.getElementById('challengeModal').classList.contains('hidden') ||
+                   !document.getElementById('startModal').classList.contains('hidden') ||
+                   !document.getElementById('rewardModal').classList.contains('hidden') ||
+                   !document.getElementById('victoryModal').classList.contains('hidden');
+        }
+
+        /* --- ENVIRONMENT EFFECTS --- */
+        function createClouds() {
+            cloudGroup = new THREE.Group();
+            const cloudMat = new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.65 });
+            const cloudGeo = new THREE.DodecahedronGeometry(4, 1);
+
+            for (let i = 0; i < 14; i++) {
+                const cloud = new THREE.Group();
+                for (let j = 0; j < 4; j++) {
+                    const part = new THREE.Mesh(cloudGeo, cloudMat);
+                    part.position.set(j * 3, Math.random() * 2, Math.random() * 2);
+                    part.scale.setScalar(0.7 + Math.random() * 0.6);
+                    cloud.add(part);
+                }
+                cloud.position.set((Math.random() - 0.5) * 170, 25 + Math.random() * 15, (Math.random() - 0.5) * 170);
+                cloudGroup.add(cloud);
+            }
+            scene.add(cloudGroup);
+            levelMeshes.push(cloudGroup);
+        }
+
+        function createAmbientParticles(colorHex) {
+            if (ambientParticles) scene.remove(ambientParticles);
+
+            const particleCount = 60;
+            const geometry = new THREE.BufferGeometry();
+            const positions = new Float32Array(particleCount * 3);
+
+            for (let i = 0; i < particleCount * 3; i += 3) {
+                positions[i] = (Math.random() - 0.5) * 110;
+                positions[i + 1] = Math.random() * 16;
+                positions[i + 2] = (Math.random() - 0.5) * 110;
+            }
+
+            geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+            const material = new THREE.PointsMaterial({
+                color: colorHex,
+                size: 0.35,
+                transparent: true,
+                opacity: 0.6,
+                blending: THREE.AdditiveBlending
+            });
+
+            ambientParticles = new THREE.Points(geometry, material);
+            scene.add(ambientParticles);
+            levelMeshes.push(ambientParticles);
+        }
+
+
+        /* --- EXTRA REALM VISUALS: glowing runes, crystal spires and magical gateways --- */
+        function createRealmDecorations(level) {
+            const palette = level === 1
+                ? { glow: 0x60a5fa, accent: 0xffd166, stone: 0xead7b0 }
+                : level === 2
+                ? { glow: 0x34d399, accent: 0xa7f3d0, stone: 0x315c48 }
+                : { glow: 0xc084fc, accent: 0xf0abfc, stone: 0x4c3b68 };
+
+            // Glowing crystal beacons line the journey and make the route easier to read.
+            for (let z = -12; z >= -88; z -= 16) {
+                [-6.2, 6.2].forEach((x, side) => {
+                    const beacon = new THREE.Group();
+                    const baseMat = new THREE.MeshStandardMaterial({
+                        color: palette.stone, roughness: 0.45, metalness: 0.25
+                    });
+                    const base = new THREE.Mesh(new THREE.CylinderGeometry(0.65, 0.9, 0.65, 6), baseMat);
+                    base.position.y = 0.32;
+                    beacon.add(base);
+                    const gemMat = new THREE.MeshStandardMaterial({
+                        color: palette.glow, emissive: palette.glow, emissiveIntensity: 1.25,
+                        metalness: 0.25, roughness: 0.18
+                    });
+                    const gem = new THREE.Mesh(new THREE.OctahedronGeometry(0.48, 0), gemMat);
+                    gem.position.y = 1.15;
+                    gem.name = 'beaconGem';
+                    beacon.add(gem);
+                    const halo = new THREE.Mesh(
+                        new THREE.TorusGeometry(0.72, 0.045, 8, 28),
+                        new THREE.MeshBasicMaterial({ color: palette.accent, transparent: true, opacity: 0.8 })
+                    );
+                    halo.rotation.x = Math.PI / 2;
+                    halo.position.y = 0.8;
+                    beacon.add(halo);
+                    const glow = new THREE.PointLight(palette.glow, 0.7, 8);
+                    glow.position.y = 1.4;
+                    beacon.add(glow);
+                    beacon.position.set(x, 0, z);
+                    beacon.userData.phase = z * 0.07 + side;
+                    scene.add(beacon);
+                    levelMeshes.push(beacon);
+                });
+            }
+
+            // Large decorative gateway rings frame the distant objective.
+            [-34, -66].forEach((z, idx) => {
+                const arch = new THREE.Group();
+                const material = new THREE.MeshStandardMaterial({
+                    color: palette.stone, metalness: 0.35, roughness: 0.38,
+                    emissive: palette.glow, emissiveIntensity: 0.12
+                });
+                [-1, 1].forEach(side => {
+                    const pillar = new THREE.Mesh(new THREE.CylinderGeometry(0.38, 0.58, 5.8, 8), material);
+                    pillar.position.set(side * 5.1, 2.9, 0);
+                    arch.add(pillar);
+                    const cap = new THREE.Mesh(new THREE.BoxGeometry(1.5, 0.55, 1.5), material);
+                    cap.position.set(side * 5.1, 5.9, 0);
+                    arch.add(cap);
+                });
+                const lintel = new THREE.Mesh(new THREE.BoxGeometry(11.2, 0.7, 1.25), material);
+                lintel.position.y = 6.1;
+                arch.add(lintel);
+                const runeRing = new THREE.Mesh(
+                    new THREE.TorusGeometry(1.25 + idx * 0.15, 0.055, 10, 40),
+                    new THREE.MeshBasicMaterial({ color: palette.accent, transparent: true, opacity: 0.9 })
+                );
+                runeRing.position.set(0, 3.1, 0.15);
+                arch.add(runeRing);
+                arch.userData.runeRing = runeRing;
+                arch.position.set(0, 0, z);
+                scene.add(arch);
+                levelMeshes.push(arch);
+            });
+
+            // Decorative floating rune shards near the skyline.
+            for (let i = 0; i < 18; i++) {
+                const shard = new THREE.Mesh(
+                    new THREE.OctahedronGeometry(0.16 + Math.random() * 0.22, 0),
+                    new THREE.MeshBasicMaterial({ color: i % 3 === 0 ? palette.accent : palette.glow })
+                );
+                shard.position.set((Math.random() - 0.5) * 42, 2.2 + Math.random() * 8, -8 - Math.random() * 82);
+                shard.userData.floatOffset = Math.random() * Math.PI * 2;
+                shard.userData.baseY = shard.position.y;
+                shard.userData.spin = 0.5 + Math.random() * 1.5;
+                shard.name = 'floatingRuneShard';
+                scene.add(shard);
+                levelMeshes.push(shard);
+            }
+        }
+
+        /* --- WORLD BUILDERS --- */
+        function clearLevel() {
+            levelMeshes.forEach(mesh => {
+                scene.remove(mesh);
+                if (mesh.geometry && !Object.values(SharedGeometries).includes(mesh.geometry)) {
+                    mesh.geometry.dispose();
+                }
+                if (mesh.material && !Object.values(SharedMaterials).includes(mesh.material)) {
+                    if (Array.isArray(mesh.material)) {
+                        mesh.material.forEach(m => m.dispose());
+                    } else {
+                        mesh.material.dispose();
+                    }
+                }
+            });
+            levelMeshes = [];
+            interactiveObjects = [];
+        }
+
+        function loadLevelWorld(lvlNumber) {
+            clearLevel();
+            GameState.currentLevel = lvlNumber;
+            updateUI();
+
+            camera.position.set(0, 1.7, 0);
+            camera.rotation.set(0, 0, 0);
+            playerVelocityY = 0;
+            isJumping = false;
+
+            if (lvlNumber === 1) buildGrammarVillage();
+            else if (lvlNumber === 2) buildMysteriousForest();
+            else if (lvlNumber === 3) buildGrammarCastle();
+        }
+
+        // LEVEL 1: VILLAGE
+        function buildGrammarVillage() {
+            scene.background = new THREE.Color(0x7ed6fa);
+            scene.fog.color.setHex(0xa0e0ff);
+            scene.fog.density = 0.012;
+
+            createClouds();
+            createAmbientParticles(0xffffff);
+            createRealmDecorations(1);
+
+            const groundGeo = new THREE.PlaneGeometry(140, 140);
+            const groundMat = new THREE.MeshStandardMaterial({ color: 0x55a646, roughness: 0.9 });
+            const ground = new THREE.Mesh(groundGeo, groundMat);
+            ground.rotation.x = -Math.PI / 2;
+            ground.receiveShadow = true;
+            scene.add(ground);
+            levelMeshes.push(ground);
+
+            const pathGeo = new THREE.PlaneGeometry(7, 100);
+            const pathMat = new THREE.MeshStandardMaterial({ color: 0xd4b583, roughness: 0.8 });
+            const path = new THREE.Mesh(pathGeo, pathMat);
+            path.rotation.x = -Math.PI / 2;
+            path.position.set(0, 0.01, -20);
+            scene.add(path);
+            levelMeshes.push(path);
+
+            const houseColors = [0xdf6a6a, 0x4a90e2, 0xf5a623, 0x9b59b6];
+            const housePositions = [
+                { x: -16, z: -15 }, { x: 16, z: -25 },
+                { x: -18, z: -45 }, { x: 18, z: -55 }
+            ];
+
+            const wallGeo = new THREE.BoxGeometry(9, 7, 9);
+            const roofGeo = new THREE.ConeGeometry(7.5, 4.5, 4);
+
+            housePositions.forEach((pos, idx) => {
+                const houseGroup = new THREE.Group();
+                const wallMat = new THREE.MeshStandardMaterial({ color: houseColors[idx % houseColors.length], roughness: 0.7 });
+                const wall = new THREE.Mesh(wallGeo, wallMat);
+                wall.position.y = 3.5;
+                wall.receiveShadow = true;
+                houseGroup.add(wall);
+
+                const roofMat = new THREE.MeshStandardMaterial({ color: 0x8b4513 });
+                const roof = new THREE.Mesh(roofGeo, roofMat);
+                roof.position.y = 9.25;
+                roof.rotation.y = Math.PI / 4;
+                houseGroup.add(roof);
+
+                houseGroup.position.set(pos.x, 0, pos.z);
+                scene.add(houseGroup);
+                levelMeshes.push(houseGroup);
+            });
+
+            for (let i = 0; i < 30; i++) {
+                const rx = (Math.random() - 0.5) * 90;
+                const rz = (Math.random() - 0.5) * 90;
+                if (Math.abs(rx) < 8) continue;
+
+                const isFlower = i % 2 === 0;
+                const mesh = new THREE.Mesh(
+                    isFlower ? SharedGeometries.flower : SharedGeometries.rock,
+                    isFlower ? (i % 4 === 0 ? SharedMaterials.flowerRed : SharedMaterials.flowerYellow) : SharedMaterials.rock
+                );
+                mesh.position.set(rx, isFlower ? 0.2 : 0.4, rz);
+                mesh.rotation.y = Math.random() * Math.PI;
+                scene.add(mesh);
+                levelMeshes.push(mesh);
+            }
+
+            for (let i = 0; i < 24; i++) {
+                const tx = (Math.random() - 0.5) * 110;
+                const tz = (Math.random() - 0.5) * 110;
+                if (Math.abs(tx) < 10 && tz > -65 && tz < 10) continue;
+
+                const tree = createTree(0x2e7d32);
+                tree.position.set(tx, 0, tz);
+                scene.add(tree);
+                levelMeshes.push(tree);
+            }
+
+            const coinPositions = [
+                { x: -4, z: -10 }, { x: 5, z: -20 }, { x: -6, z: -35 },
+                { x: 8, z: -48 }, { x: 0, z: -60 }
+            ];
+            coinPositions.forEach(p => createCoin(p.x, 1.2, p.z));
+
+            const npcsData = GrammarData.level1;
+            createNPC(-5, 0, -12, 0x4287f5, npcsData[0]);
+            createNPC(6, 0, -28, 0x9b59b6, npcsData[1]);
+            createNPC(-8, 0, -42, 0xe67e22, npcsData[2]);
+            createNPC(9, 0, -58, 0x2ecc71, npcsData[3]);
+            createCrystalPedestal(0, 0, -75, 0x3b82f6, npcsData[4], "💎 Level 1 Crystal");
+        }
+
+        // LEVEL 2: FOREST
+        function buildMysteriousForest() {
+            scene.background = new THREE.Color(0x0a2f1d);
+            scene.fog.color.setHex(0x0e3a24);
+            scene.fog.density = 0.02;
+
+            createClouds();
+            createAmbientParticles(0x34d399);
+            createRealmDecorations(2);
+
+            const groundGeo = new THREE.PlaneGeometry(150, 150);
+            const groundMat = new THREE.MeshStandardMaterial({ color: 0x1c3b1e, roughness: 0.9 });
+            const ground = new THREE.Mesh(groundGeo, groundMat);
+            ground.rotation.x = -Math.PI / 2;
+            ground.receiveShadow = true;
+            scene.add(ground);
+            levelMeshes.push(ground);
+
+            const riverGeo = new THREE.PlaneGeometry(14, 140);
+            const riverMat = new THREE.MeshStandardMaterial({ color: 0x2980b9, roughness: 0.2 });
+            const river = new THREE.Mesh(riverGeo, riverMat);
+            river.rotation.x = -Math.PI / 2;
+            river.position.set(0, 0.05, -30);
+            scene.add(river);
+            levelMeshes.push(river);
+
+            const bridge = new THREE.Group();
+            const bPlankGeo = new THREE.BoxGeometry(16, 0.5, 10);
+            const bPlankMat = new THREE.MeshStandardMaterial({ color: 0x5c3a21 });
+            const bMesh = new THREE.Mesh(bPlankGeo, bPlankMat);
+            bMesh.position.y = 0.3;
+            bridge.add(bMesh);
+            bridge.position.set(0, 0, -35);
+            scene.add(bridge);
+            levelMeshes.push(bridge);
+
+            for (let i = 0; i < 45; i++) {
+                const tx = (Math.random() - 0.5) * 130;
+                const tz = (Math.random() - 0.5) * 130;
+                if (Math.abs(tx) < 12 && tz > -80 && tz < 10) continue;
+
+                const tree = createPineTree();
+                tree.position.set(tx, 0, tz);
+                scene.add(tree);
+                levelMeshes.push(tree);
+            }
+
+            for (let i = 0; i < 5; i++) {
+                const cx = (Math.random() - 0.5) * 25;
+                const cz = -10 - i * 14;
+                createCoin(cx, 1.2, cz);
+            }
+
+            const npcsData = GrammarData.level2;
+            createNPC(-7, 0, -15, 0x27ae60, npcsData[0]);
+            createNPC(7, 0, -28, 0x16a085, npcsData[1]);
+            createNPC(-8, 0, -48, 0xd35400, npcsData[2]);
+            createNPC(0, 0, -62, 0x8e44ad, npcsData[3]);
+            createCrystalPedestal(0, 0, -80, 0x10b981, npcsData[4], "❇️ Level 2 Crystal");
+        }
+
+        // LEVEL 3: CASTLE WITH BOSS
+        function buildGrammarCastle() {
+            scene.background = new THREE.Color(0x0f0c1b);
+            scene.fog.color.setHex(0x18132b);
+            scene.fog.density = 0.018;
+
+            createAmbientParticles(0xc084fc);
+            createRealmDecorations(3);
+
+            const floorGeo = new THREE.PlaneGeometry(120, 150);
+            const floorMat = new THREE.MeshStandardMaterial({ color: 0x2c3e50, roughness: 0.6 });
+            const floor = new THREE.Mesh(floorGeo, floorMat);
+            floor.rotation.x = -Math.PI / 2;
+            floor.receiveShadow = true;
+            scene.add(floor);
+            levelMeshes.push(floor);
+
+            const wallMat = new THREE.MeshStandardMaterial({ color: 0x34495e, roughness: 0.7 });
+            const pillarGeo = new THREE.CylinderGeometry(1.4, 1.8, 16, 6);
+
+            for (let z = -10; z >= -90; z -= 20) {
+                [-12, 12].forEach(x => {
+                    const pillar = new THREE.Mesh(pillarGeo, wallMat);
+                    pillar.position.set(x, 8, z);
+                    scene.add(pillar);
+                    levelMeshes.push(pillar);
+                });
+            }
+
+            const leftWall = new THREE.Mesh(new THREE.BoxGeometry(3, 16, 120), wallMat);
+            leftWall.position.set(-20, 8, -50);
+            scene.add(leftWall);
+            levelMeshes.push(leftWall);
+
+            const rightWall = new THREE.Mesh(new THREE.BoxGeometry(3, 16, 120), wallMat);
+            rightWall.position.set(20, 8, -50);
+            scene.add(rightWall);
+            levelMeshes.push(rightWall);
+
+            const carpetGeo = new THREE.PlaneGeometry(6, 100);
+            const carpetMat = new THREE.MeshStandardMaterial({ color: 0x900c3f, roughness: 0.8 });
+            const carpet = new THREE.Mesh(carpetGeo, carpetMat);
+            carpet.rotation.x = -Math.PI / 2;
+            carpet.position.set(0, 0.02, -50);
+            scene.add(carpet);
+            levelMeshes.push(carpet);
+
+            [-15, -35, -55, -75, -90].forEach(z => createCoin(0, 1.2, z));
+
+            const npcsData = GrammarData.level3;
+            createNPC(-6, 0, -18, 0xc0392b, npcsData[0]);
+            createNPC(6, 0, -38, 0x8e44ad, npcsData[1]);
+            createNPC(-6, 0, -58, 0x2980b9, npcsData[2]);
+
+            // BOSS NPC CREATION (Enhanced Visuals)
+            createBossNPC(0, 0, -78, npcsData[3]);
+
+            createCrystalPedestal(0, 0, -98, 0xa855f7, npcsData[4], "🔮 Throne Crystal");
+        }
+
+        /* --- HELPER MESH CREATORS --- */
+        function createTree(colorHex) {
+            const group = new THREE.Group();
+            const trunk = new THREE.Mesh(SharedGeometries.treeTrunk, SharedMaterials.treeTrunk);
+            trunk.position.y = 1.75;
+            group.add(trunk);
+
+            const folMat = new THREE.MeshStandardMaterial({ color: colorHex, roughness: 0.9 });
+            const fol = new THREE.Mesh(SharedGeometries.treeFoliage, folMat);
+            fol.position.y = 4.8;
+            group.add(fol);
+
+            return group;
+        }
+
+        function createPineTree() {
+            const group = new THREE.Group();
+            const trunk = new THREE.Mesh(SharedGeometries.pineTrunk, SharedMaterials.treeTrunk);
+            trunk.position.y = 2.0;
+            group.add(trunk);
+
+            const cMat = new THREE.MeshStandardMaterial({ color: 0x145a32, roughness: 0.9 });
+            for (let i = 0; i < 3; i++) {
+                const cone = new THREE.Mesh(SharedGeometries.pineCones[i], cMat);
+                cone.position.y = 4.0 + i * 2.0;
+                group.add(cone);
+            }
+            return group;
+        }
+
+        function createNPC(x, y, z, colorHex, npcData) {
+            const group = new THREE.Group();
+
+            const bodyMat = new THREE.MeshStandardMaterial({ color: colorHex, roughness: 0.6 });
+            const body = new THREE.Mesh(SharedGeometries.npcBody, bodyMat);
+            body.position.y = 1.25;
+            group.add(body);
+
+            const head = new THREE.Mesh(SharedGeometries.npcHead, SharedMaterials.npcHead);
+            head.position.y = 2.85;
+            group.add(head);
+
+            const icon = new THREE.Mesh(SharedGeometries.npcIcon, SharedMaterials.npcIcon);
+            icon.position.y = 3.9;
+            icon.name = "floatingIcon";
+            group.add(icon);
+
+            // Aura ring on ground
+            const auraMat = new THREE.MeshBasicMaterial({ color: colorHex, transparent: true, opacity: 0.4, side: THREE.DoubleSide });
+            const aura = new THREE.Mesh(SharedGeometries.auraRing, auraMat);
+            aura.rotation.x = Math.PI / 2;
+            aura.position.y = 0.05;
+            aura.name = "auraRing";
+            group.add(aura);
+
+            group.position.set(x, y, z);
+            scene.add(group);
+            levelMeshes.push(group);
+
+            interactiveObjects.push({
+                mesh: group,
+                type: 'npc',
+                data: npcData,
+                radius: 4.5
+            });
+        }
+
+        function createBossNPC(x, y, z, npcData) {
+            const group = new THREE.Group();
+
+            // Boss Body scaled 1.5x
+            const bodyMat = new THREE.MeshStandardMaterial({ color: 0x4a148c, roughness: 0.4, metalness: 0.3 });
+            const body = new THREE.Mesh(SharedGeometries.npcBody, bodyMat);
+            body.scale.set(1.4, 1.4, 1.4);
+            body.position.y = 1.7;
+            group.add(body);
+
+            const headMat = new THREE.MeshStandardMaterial({ color: 0x311b92, roughness: 0.5 });
+            const head = new THREE.Mesh(SharedGeometries.npcHead, headMat);
+            head.scale.set(1.4, 1.4, 1.4);
+            head.position.y = 3.8;
+            group.add(head);
+
+            // Boss Crown / Floating Skull Icon
+            const iconGeo = new THREE.OctahedronGeometry(0.65);
+            const iconMat = new THREE.MeshBasicMaterial({ color: 0xff1744 });
+            const icon = new THREE.Mesh(iconGeo, iconMat);
+            icon.position.y = 5.3;
+            icon.name = "floatingIcon";
+            group.add(icon);
+
+            // Red Boss Aura Ring
+            const auraMat = new THREE.MeshBasicMaterial({ color: 0xff1744, transparent: true, opacity: 0.6, side: THREE.DoubleSide });
+            const aura = new THREE.Mesh(new THREE.RingGeometry(1.6, 2.5, 16), auraMat);
+            aura.rotation.x = Math.PI / 2;
+            aura.position.y = 0.05;
+            aura.name = "auraRing";
+            group.add(aura);
+
+            group.position.set(x, y, z);
+            scene.add(group);
+            levelMeshes.push(group);
+
+            interactiveObjects.push({
+                mesh: group,
+                type: 'boss',
+                data: npcData,
+                radius: 5.5
+            });
+        }
+
+        function createCrystalPedestal(x, y, z, colorHex, crystalData, label) {
+            const group = new THREE.Group();
+
+            const baseMat = new THREE.MeshStandardMaterial({ color: 0x334155, roughness: 0.5 });
+            const base = new THREE.Mesh(SharedGeometries.pedestalBase, baseMat);
+            base.position.y = 1.1;
+            group.add(base);
+
+            const gemMat = new THREE.MeshStandardMaterial({
+                color: colorHex,
+                roughness: 0.2,
+                emissive: colorHex,
+                emissiveIntensity: 0.6
+            });
+            const gem = new THREE.Mesh(SharedGeometries.pedestalGem, gemMat);
+            gem.position.y = 3.6;
+            gem.name = "crystalGem";
+            group.add(gem);
+
+            // Light beam aura around pedestal
+            const beamGeo = new THREE.CylinderGeometry(1.2, 1.2, 8, 12, 1, true);
+            const beamMat = new THREE.MeshBasicMaterial({
+                color: colorHex,
+                transparent: true,
+                opacity: 0.25,
+                side: THREE.DoubleSide
+            });
+            const beam = new THREE.Mesh(beamGeo, beamMat);
+            beam.position.y = 4.0;
+            group.add(beam);
+
+            group.position.set(x, y, z);
+            scene.add(group);
+            levelMeshes.push(group);
+
+            interactiveObjects.push({
+                mesh: group,
+                type: 'crystal',
+                data: crystalData,
+                radius: 4.8
+            });
+        }
+
+        function createCoin(x, y, z) {
+            const coin = new THREE.Mesh(SharedGeometries.coin, SharedMaterials.coin);
+            coin.rotation.x = Math.PI / 2;
+            coin.position.set(x, y, z);
+            scene.add(coin);
+            levelMeshes.push(coin);
+
+            interactiveObjects.push({
+                mesh: coin,
+                type: 'coin',
+                radius: 2.2,
+                collected: false
+            });
+        }
+
+        /* --- RADAR MAP UPDATER --- */
+        function drawRadarMap() {
+            const canvas = document.getElementById('radarCanvas');
+            if (!canvas) return;
+            const ctx = canvas.getContext('2d');
+            ctx.clearRect(0, 0, 38, 38);
+
+            ctx.fillStyle = "#0f172a";
+            ctx.beginPath();
+            ctx.arc(19, 19, 18, 0, Math.PI * 2);
+            ctx.fill();
+
+            // Center player dot
+            ctx.fillStyle = "#38bdf8";
+            ctx.beginPath();
+            ctx.arc(19, 19, 3, 0, Math.PI * 2);
+            ctx.fill();
+
+            const range = 65;
+            interactiveObjects.forEach(obj => {
+                if (obj.type === 'coin' && obj.collected) return;
+
+                const dx = obj.mesh.position.x - camera.position.x;
+                const dz = obj.mesh.position.z - camera.position.z;
+
+                const rx = 19 + (dx / range) * 17;
+                const ry = 19 + (dz / range) * 17;
+
+                if (rx >= 2 && rx <= 36 && ry >= 2 && ry <= 36) {
+                    ctx.fillStyle = obj.type === 'crystal' ? "#f59e0b" : (obj.type === 'boss' ? "#ef4444" : "#34d399");
+                    ctx.beginPath();
+                    ctx.arc(rx, ry, obj.type === 'boss' ? 3.5 : 2.5, 0, Math.PI * 2);
+                    ctx.fill();
+                }
+            });
+        }
+
+        /* --- ANIMATION & PHYSICS LOOP --- */
+        let radarUpdateTimer = 0;
+        function animate() {
+            requestAnimationFrame(animate);
+
+            // A smaller delta cap keeps movement and jumping stable after a frame hitch.
+            const delta = Math.min(clock.getDelta(), 0.05);
+            const time = clock.getElapsedTime();
+
+            // Day/Night Soft Lighting Shift
+            dayTime += delta * 0.05;
+            if (GameState.currentLevel === 1) {
+                const lightIntensity = 0.7 + Math.sin(dayTime) * 0.25;
+                dirLight.intensity = lightIntensity;
+            }
+
+            // Physics Update
+            playerVelocityY += gravity * delta;
+            camera.position.y += playerVelocityY * delta;
+
+            let baseEyeY = 1.7;
+
+            const isMoving = (moveForward || moveBackward || moveLeft || moveRight) && !isJumping;
+            if (isMoving) {
+                bobTimer += delta * 10;
+                baseEyeY += Math.sin(bobTimer) * 0.06;
+            }
+
+            if (camera.position.y <= baseEyeY) {
+                camera.position.y = baseEyeY;
+                playerVelocityY = 0;
+                isJumping = false;
+                canJump = true;
+            }
+
+            // Exponential damping feels consistent across different frame rates.
+            const damping = 1 - Math.exp(-10.0 * delta);
+            velocity.x -= velocity.x * damping;
+            velocity.z -= velocity.z * damping;
+
+            direction.z = Number(moveForward) - Number(moveBackward);
+            direction.x = Number(moveRight) - Number(moveLeft);
+            direction.normalize();
+
+            const speed = 34.0;
+            if (moveForward || moveBackward) velocity.z -= direction.z * speed * delta;
+            if (moveLeft || moveRight) velocity.x -= direction.x * speed * delta;
+
+            camera.translateX(-velocity.x * delta);
+            camera.translateZ(velocity.z * delta);
+
+            camera.position.x = Math.max(-65, Math.min(65, camera.position.x));
+            camera.position.z = Math.max(-100, Math.min(10, camera.position.z));
+
+            // Animate Clouds
+            if (cloudGroup) {
+                cloudGroup.children.forEach(c => {
+                    c.position.x += delta * 0.8;
+                    if (c.position.x > 85) c.position.x = -85;
+                });
+            }
+
+            // Animate Ambient Dust Particles
+            if (ambientParticles) {
+                const pos = ambientParticles.geometry.attributes.position.array;
+                const len = pos.length;
+                for (let i = 1; i < len; i += 3) {
+                    pos[i] += 0.9 * delta;
+                    if (pos[i] > 16) pos[i] = 0;
+                }
+                ambientParticles.geometry.attributes.position.needsUpdate = true;
+            }
+
+            // Update Particle FX Systems
+            for (let i = activeParticleEffects.length - 1; i >= 0; i--) {
+                const fx = activeParticleEffects[i];
+                fx.life -= delta;
+                if (fx.life <= 0) {
+                    scene.remove(fx.system);
+                    fx.system.geometry.dispose();
+                    fx.system.material.dispose();
+                    activeParticleEffects.splice(i, 1);
+                    continue;
+                }
+                const pos = fx.system.geometry.attributes.position.array;
+                for (let j = 0; j < fx.velocities.length; j++) {
+                    pos[j * 3] += fx.velocities[j].x * delta;
+                    pos[j * 3 + 1] += fx.velocities[j].y * delta;
+                    pos[j * 3 + 2] += fx.velocities[j].z * delta;
+                }
+                fx.system.geometry.attributes.position.needsUpdate = true;
+                fx.system.material.opacity = fx.life;
+            }
+
+            // Animate decorative realm magic.
+            for (const mesh of levelMeshes) {
+                if (mesh.userData && mesh.userData.floatOffset !== undefined) {
+                    mesh.position.y = mesh.userData.baseY + Math.sin(time * 1.8 + mesh.userData.floatOffset) * 0.32;
+                    mesh.rotation.y += delta * mesh.userData.spin;
+                }
+                if (mesh.userData && mesh.userData.runeRing) {
+                    mesh.userData.runeRing.rotation.z += delta * 0.65;
+                }
+                if (mesh.children) {
+                    mesh.children.forEach(child => {
+                        if (child.name === 'beaconGem') {
+                            child.rotation.y += delta * 1.4;
+                            child.position.y = 1.15 + Math.sin(time * 2.2 + (mesh.userData.phase || 0)) * 0.12;
+                        }
+                    });
+                }
+            }
+
+            // Animate Objects
+            for (let i = 0; i < interactiveObjects.length; i++) {
+                const obj = interactiveObjects[i];
+                if (obj.type === 'npc' || obj.type === 'boss') {
+                    const icon = obj.mesh.getObjectByName("floatingIcon");
+                    if (icon) icon.rotation.y += delta * 2.5;
+                    const aura = obj.mesh.getObjectByName("auraRing");
+                    if (aura) aura.rotation.z += delta * 1.2;
+                } else if (obj.type === 'crystal') {
+                    const gem = obj.mesh.getObjectByName("crystalGem");
+                    if (gem) {
+                        gem.rotation.y += delta * 1.8;
+                        gem.position.y = 3.6 + Math.sin(time * 3.0) * 0.18;
+                    }
+                } else if (obj.type === 'coin' && !obj.collected) {
+                    obj.mesh.rotation.z += delta * 3.5;
+                    const distSq = camera.position.distanceToSquared(obj.mesh.position);
+                    if (distSq < obj.radius * obj.radius) {
+                        obj.collected = true;
+                        createBurstParticles(obj.mesh.position, 0xf1c40f, 15);
+                        scene.remove(obj.mesh);
+                        GameState.coinsCollected++;
+                        const coinPts = Math.round(10 * (1 + GameState.streak * 0.25));
+                        GameState.score += coinPts;
+                        spawnFloatingScoreText(`+${coinPts} Pts!`);
+                        SoundFX.playCoin();
+                        updateUI();
+                    }
+                }
+            }
+
+            checkInteractions();
+            // The minimap does not need to redraw every rendered frame.
+            radarUpdateTimer += delta;
+            if (radarUpdateTimer >= 0.08) {
+                drawRadarMap();
+                radarUpdateTimer = 0;
+            }
+            renderer.render(scene, camera);
+        }
+
+        function checkInteractions() {
+            let closeObject = null;
+            let minDistSq = Infinity;
+
+            for (let i = 0; i < interactiveObjects.length; i++) {
+                const obj = interactiveObjects[i];
+                if (obj.type === 'coin') continue;
+                const distSq = camera.position.distanceToSquared(obj.mesh.position);
+                const rSq = obj.radius * obj.radius;
+                if (distSq < rSq && distSq < minDistSq) {
+                    minDistSq = distSq;
+                    closeObject = obj;
+                }
+            }
+
+            const promptEl = document.getElementById('interactionPrompt');
+            const promptText = document.getElementById('promptText');
+            const crosshair = document.getElementById('crosshair');
+
+            if (closeObject) {
+                GameState.activeObject = closeObject;
+                const progress = GameState.levelProgress[GameState.currentLevel];
+                if (closeObject.type === 'crystal' && progress.solved < progress.total - 1) {
+                    const remaining = (progress.total - 1) - progress.solved;
+                    promptText.innerText = `🔒 Solve ${remaining} more character challenge${remaining > 1 ? 's' : ''}`;
+                } else if (closeObject.type === 'boss') {
+                    promptText.innerText = `⚔️ Challenge ${closeObject.data.npcName}`;
+                } else {
+                    promptText.innerText = closeObject.type === 'crystal' ? 
+                        `Claim ${closeObject.data.npcName}` : `Talk to ${closeObject.data.npcName}`;
+                }
+                promptEl.classList.remove('hidden');
+                crosshair.classList.add('active');
+            } else {
+                GameState.activeObject = null;
+                promptEl.classList.add('hidden');
+                crosshair.classList.remove('active');
+            }
+        }
+
+        function interactWithTarget() {
+            if (!GameState.activeObject) return;
+            const target = GameState.activeObject;
+            const progress = GameState.levelProgress[GameState.currentLevel];
+
+            if (target.type === 'crystal' && progress.solved < progress.total - 1) {
+                const remaining = (progress.total - 1) - progress.solved;
+                const feedbackBox = document.getElementById('feedbackBox');
+                
+                const modal = document.getElementById('challengeModal');
+                document.getElementById('npcName').innerText = "Ancient Magic Field";
+                document.getElementById('npcRole').innerText = "Barrier Protection";
+                document.getElementById('npcAvatar').innerText = "🛡️";
+                document.getElementById('npcDialogueText').innerText = `The crystal barrier remains sealed! You must solve the remaining ${remaining} challenge${remaining > 1 ? 's' : ''} in this realm before claiming the final crystal!`;
+                
+                document.getElementById('optionsContainer').classList.add('hidden');
+                document.getElementById('reorderContainer').classList.add('hidden');
+                feedbackBox.classList.add('hidden');
+                
+                modal.classList.remove('hidden');
+                if (document.pointerLockElement) document.exitPointerLock();
+                return;
+            }
+
+            openGrammarChallenge(target.data);
+        }
+
+        /* --- GRAMMAR CHALLENGE MODAL --- */
+        let currentSelectedWords = [];
+        let challengeAnswered = false;
+
+        function openGrammarChallenge(data) {
+            challengeAnswered = false;
+            GameState.activeNPC = data;
+            const modal = document.getElementById('challengeModal');
+            
+            document.getElementById('npcName').innerText = data.npcName;
+            document.getElementById('npcRole').innerText = data.npcRole;
+            document.getElementById('npcAvatar').innerText = data.npcAvatar;
+            document.getElementById('npcDialogueText').innerText = data.text;
+
+            const optionsContainer = document.getElementById('optionsContainer');
+            const reorderContainer = document.getElementById('reorderContainer');
+            const feedbackBox = document.getElementById('feedbackBox');
+
+            optionsContainer.innerHTML = '';
+            feedbackBox.classList.add('hidden');
+
+            if (data.type === 'reorder') {
+                optionsContainer.classList.add('hidden');
+                reorderContainer.classList.remove('hidden');
+                setupReorderPuzzle(data);
+            } else {
+                reorderContainer.classList.add('hidden');
+                optionsContainer.classList.remove('hidden');
+
+                data.options.forEach((opt, idx) => {
+                    const btn = document.createElement('button');
+                    btn.className = "w-full p-3.5 bg-slate-800 hover:bg-slate-700 border border-slate-600 hover:border-indigo-400 rounded-xl text-left text-sm font-semibold transition active:scale-95 text-gray-100 flex items-center gap-3 shadow";
+                    btn.innerHTML = `<span class="w-6 h-6 rounded-full bg-indigo-900/80 text-xs flex items-center justify-center font-bold text-indigo-300 border border-indigo-500/40">${String.fromCharCode(65 + idx)}</span> <span>${opt}</span>`;
+                    btn.onclick = () => checkMultipleChoiceAnswer(idx, data);
+                    optionsContainer.appendChild(btn);
+                });
+            }
+
+            modal.classList.remove('hidden');
+            if (document.pointerLockElement) document.exitPointerLock();
+        }
+
+        function checkMultipleChoiceAnswer(idx, data) {
+            if (challengeAnswered) return;
+            const feedbackBox = document.getElementById('feedbackBox');
+            feedbackBox.classList.remove('hidden', 'bg-emerald-900/80', 'border-emerald-500', 'text-emerald-200', 'bg-rose-900/80', 'border-rose-500', 'text-rose-200');
+
+            if (idx === data.answer) {
+                challengeAnswered = true;
+                SoundFX.playCorrect();
+                if (GameState.activeObject && GameState.activeObject.mesh) {
+                    createBurstParticles(GameState.activeObject.mesh.position, 0x34d399, 25);
+                }
+                feedbackBox.classList.add('bg-emerald-900/80', 'border', 'border-emerald-500', 'text-emerald-200');
+                
+                GameState.streak++;
+                const multiplier = 1 + (GameState.streak - 1) * 0.25;
+                const pointsEarned = Math.round(30 * multiplier);
+                
+                spawnFloatingScoreText(`+${pointsEarned} Pts!`);
+
+                feedbackBox.innerHTML = `<span>✅ <strong>Correct!</strong> ${data.explanation} <br><span class="text-xs text-yellow-300 font-bold">+${pointsEarned} pts (Streak x${multiplier.toFixed(2)})</span></span>`;
+                
+                GameState.score += pointsEarned;
+                GameState.levelProgress[GameState.currentLevel].solved++;
+                updateUI();
+
+                setTimeout(() => {
+                    closeChallengeModal();
+                    checkLevelCompletion();
+                }, 1600);
+            } else {
+                SoundFX.playWrong();
+                GameState.streak = 0;
+                updateUI();
+                feedbackBox.classList.add('bg-rose-900/80', 'border', 'border-rose-500', 'text-rose-200');
+                feedbackBox.innerHTML = `<span>❌ <strong>Not quite!</strong> Try again! Hint: ${data.explanation}</span>`;
+            }
+        }
+
+        function setupReorderPuzzle(data) {
+            currentSelectedWords = [];
+            const constructed = document.getElementById('constructedSentence');
+            const wordBank = document.getElementById('wordBank');
+            const submitBtn = document.getElementById('submitReorderBtn');
+
+            constructed.innerHTML = '<span class="text-gray-500 text-xs italic">Tap words below to build sentence...</span>';
+            wordBank.innerHTML = '';
+
+            const shuffled = [...data.words].sort(() => Math.random() - 0.5);
+
+            shuffled.forEach(word => {
+                const chip = document.createElement('button');
+                chip.className = "px-3 py-1.5 bg-indigo-900/80 hover:bg-indigo-700 border border-indigo-500/50 rounded-lg text-sm font-semibold text-yellow-200 transition active:scale-95 shadow";
+                chip.innerText = word;
+                chip.onclick = () => {
+                    currentSelectedWords.push(word);
+                    chip.disabled = true;
+                    chip.classList.add('opacity-30');
+                    renderConstructedSentence(data);
+                };
+                wordBank.appendChild(chip);
+            });
+
+            const resetBtn = document.getElementById('resetReorderBtn');
+            resetBtn.onclick = () => setupReorderPuzzle(data);
+
+            submitBtn.onclick = () => {
+                if (challengeAnswered) return;
+                const normalize = words => words.map(word => word.trim().toLocaleLowerCase().replace(/[.!?]+$/, ''));
+                const isCorrect = currentSelectedWords.length === data.correctOrder.length &&
+                    JSON.stringify(normalize(currentSelectedWords)) === JSON.stringify(normalize(data.correctOrder));
+                const feedbackBox = document.getElementById('feedbackBox');
+                feedbackBox.classList.remove('hidden', 'bg-emerald-900/80', 'border-emerald-500', 'text-emerald-200', 'bg-rose-900/80', 'border-rose-500', 'text-rose-200');
+
+                if (isCorrect) {
+                    challengeAnswered = true;
+                    SoundFX.playCorrect();
+                    if (GameState.activeObject && GameState.activeObject.mesh) {
+                        createBurstParticles(GameState.activeObject.mesh.position, 0xa855f7, 30);
+                    }
+                    feedbackBox.classList.add('bg-emerald-900/80', 'border', 'border-emerald-500', 'text-emerald-200');
+                    
+                    GameState.streak++;
+                    const multiplier = 1 + (GameState.streak - 1) * 0.25;
+                    const pointsEarned = Math.round(45 * multiplier);
+
+                    spawnFloatingScoreText(`+${pointsEarned} Pts!`);
+
+                    feedbackBox.innerHTML = `<span>✅ <strong>Brilliant Sentence!</strong> ${data.explanation} <br><span class="text-xs text-yellow-300 font-bold">+${pointsEarned} pts (Streak x${multiplier.toFixed(2)})</span></span>`;
+                    
+                    GameState.score += pointsEarned;
+                    GameState.levelProgress[GameState.currentLevel].solved++;
+                    updateUI();
+
+                    setTimeout(() => {
+                        closeChallengeModal();
+                        checkLevelCompletion();
+                    }, 1600);
+                } else {
+                    SoundFX.playWrong();
+                    GameState.streak = 0;
+                    updateUI();
+                    feedbackBox.classList.add('bg-rose-900/80', 'border', 'border-rose-500', 'text-rose-200');
+                    feedbackBox.innerHTML = `<span>❌ <strong>Incorrect sentence order.</strong> Try resetting and ordering carefully!</span>`;
+                }
+            };
+        }
+
+        function renderConstructedSentence(data) {
+            const constructed = document.getElementById('constructedSentence');
+            constructed.innerHTML = '';
+            
+            if (currentSelectedWords.length === 0) {
+                constructed.innerHTML = '<span class="text-gray-500 text-xs italic">Tap words below to build sentence...</span>';
+                return;
+            }
+
+            currentSelectedWords.forEach((w, idx) => {
+                const chip = document.createElement('span');
+                chip.className = "px-2.5 py-1 bg-yellow-400 text-slate-950 font-bold rounded-md text-xs cursor-pointer flex items-center gap-1 shadow";
+                chip.innerHTML = `${w} <i class="fa-solid fa-xmark text-[10px]"></i>`;
+                chip.onclick = () => {
+                    currentSelectedWords.splice(idx, 1);
+                    const chips = document.getElementById('wordBank').querySelectorAll('button');
+                    chips.forEach(c => {
+                        if (c.innerText === w && c.disabled) {
+                            c.disabled = false;
+                            c.classList.remove('opacity-30');
+                        }
+                    });
+                    renderConstructedSentence(data);
+                };
+                constructed.appendChild(chip);
+            });
+        }
+
+        function closeChallengeModal() {
+            document.getElementById('challengeModal').classList.add('hidden');
+        }
+
+        document.getElementById('closeChallengeBtn').onclick = closeChallengeModal;
+
+        /* --- REWARDS & PROGRESSION --- */
+        function checkLevelCompletion() {
+            const currentLvl = GameState.currentLevel;
+            const progress = GameState.levelProgress[currentLvl];
+
+            if (progress.solved >= progress.total && !GameState.crystals[currentLvl]) {
+                GameState.crystals[currentLvl] = true;
+                if (currentLvl < 3) GameState.unlockedLevels[currentLvl + 1] = true;
+
+                SoundFX.playWin();
+                showRewardModal(currentLvl);
+            }
+        }
+
+        function showRewardModal(lvl) {
+            const modal = document.getElementById('rewardModal');
+            const crystalIcons = ["💎", "❇️", "🔮"];
+            const titles = ["VILLAGE CRYSTAL RECOVERED!", "FOREST CRYSTAL RECOVERED!", "CASTLE CRYSTAL RECOVERED!"];
+            const descs = [
+                "You mastered common nouns, verbs & sentences! Level 2 Mysterious Forest is unlocked!",
+                "You mastered tenses and adjectives! Level 3 Grammar Castle is unlocked!",
+                "You defeated the Shadow Grammarian and restored all ancient Grammar Crystals!"
+            ];
+
+            document.getElementById('rewardCrystalIcon').innerText = crystalIcons[lvl - 1];
+            document.getElementById('rewardTitle').innerText = titles[lvl - 1];
+            document.getElementById('rewardDesc').innerText = descs[lvl - 1];
+            document.getElementById('rewardScore').innerText = `+${GameState.score}`;
+            document.getElementById('rewardNextLvl').innerText = lvl < 3 ? `Level ${lvl + 1}` : "Victory!";
+
+            modal.classList.remove('hidden');
+        }
+
+        document.getElementById('nextLevelBtn').onclick = () => {
+            document.getElementById('rewardModal').classList.add('hidden');
+            if (GameState.currentLevel < 3) {
+                loadLevelWorld(GameState.currentLevel + 1);
+            } else {
+                showVictoryScreen();
+            }
+        };
+
+        function showVictoryScreen() {
+            SoundFX.playWin();
+            const victoryModal = document.getElementById('victoryModal');
+            document.getElementById('victoryCoins').innerText = GameState.coinsCollected;
+            document.getElementById('victoryFinalScore').innerText = `${GameState.score} pts`;
+            victoryModal.classList.remove('hidden');
+        }
+
+        /* --- UI UPDATER --- */
+        function updateUI() {
+            document.getElementById('scoreDisplay').innerText = `${GameState.score} pts`;
+
+            const streakBadge = document.getElementById('streakBadge');
+            const streakCount = document.getElementById('streakCount');
+            if (GameState.streak > 1) {
+                streakBadge.classList.remove('hidden');
+                streakBadge.classList.add('flex');
+                streakCount.innerText = `x${(1 + (GameState.streak - 1) * 0.25).toFixed(2)}`;
+            } else {
+                streakBadge.classList.add('hidden');
+                streakBadge.classList.remove('flex');
+            }
+
+            for (let i = 1; i <= 3; i++) {
+                const badge = document.getElementById(`badge-lvl-${i}`);
+                const status = document.getElementById(`status-lvl-${i}`);
+                const crystal = document.getElementById(`crystal-${i}`);
+
+                if (GameState.crystals[i]) {
+                    crystal.classList.remove('opacity-30');
+                    crystal.classList.add('glow-crystal-' + i);
+                }
+
+                if (GameState.unlockedLevels[i]) {
+                    badge.classList.remove('opacity-60');
+                    status.className = GameState.crystals[i] ? "fa-solid fa-check text-emerald-400 text-xs ml-1" : "fa-solid fa-lock-open text-blue-400 text-xs ml-1";
+                }
+            }
+
+            const progress = GameState.levelProgress[GameState.currentLevel];
+            const pct = (progress.solved / progress.total) * 100;
+            document.getElementById('objectiveProgress').style.width = `${pct}%`;
+
+            const objTexts = [
+                `Village: Complete grammar challenges (${progress.solved}/${progress.total}) & claim Crystal!`,
+                `Forest: Answer tenses & adjectives (${progress.solved}/${progress.total}) to clear path!`,
+                `Castle: Defeat Shadow Grammarian (${progress.solved}/${progress.total}) to claim throne crystal!`
+            ];
+            document.getElementById('objectiveText').innerText = objTexts[GameState.currentLevel - 1];
+
+            const btn2 = document.getElementById('btnSelectLvl2');
+            const btn3 = document.getElementById('btnSelectLvl3');
+
+            if (GameState.unlockedLevels[2]) {
+                btn2.disabled = false;
+                btn2.className = "w-full p-4 rounded-2xl bg-gradient-to-r from-emerald-600/40 to-teal-600/40 border border-emerald-400/50 hover:border-emerald-300 flex items-center justify-between text-left transition hover:scale-[1.02] active:scale-95";
+                document.getElementById('lvl2StatusBadge').innerText = "Unlocked";
+                document.getElementById('lvl2StatusBadge').className = "text-xs bg-emerald-500 text-white font-bold px-3 py-1 rounded-full";
+            }
+            if (GameState.unlockedLevels[3]) {
+                btn3.disabled = false;
+                btn3.className = "w-full p-4 rounded-2xl bg-gradient-to-r from-purple-600/40 to-indigo-600/40 border border-purple-400/50 hover:border-purple-300 flex items-center justify-between text-left transition hover:scale-[1.02] active:scale-95";
+                document.getElementById('lvl3StatusBadge').innerText = "Unlocked";
+                document.getElementById('lvl3StatusBadge').className = "text-xs bg-purple-500 text-white font-bold px-3 py-1 rounded-full";
+            }
+        }
+
+        /* --- HANDLERS --- */
+        document.getElementById('startExploreBtn').onclick = () => {
+            document.getElementById('startModal').classList.add('hidden');
+            SoundFX.init();
+        };
+
+        document.getElementById('menuBtn').onclick = () => {
+            document.getElementById('startModal').classList.remove('hidden');
+        };
+
+        document.getElementById('btnSelectLvl1').onclick = () => {
+            loadLevelWorld(1);
+            document.getElementById('startModal').classList.add('hidden');
+        };
+        document.getElementById('btnSelectLvl2').onclick = () => {
+            loadLevelWorld(2);
+            document.getElementById('startModal').classList.add('hidden');
+        };
+        document.getElementById('btnSelectLvl3').onclick = () => {
+            loadLevelWorld(3);
+            document.getElementById('startModal').classList.add('hidden');
+        };
+
+        document.getElementById('playAgainBtn').onclick = () => {
+            GameState.score = 0;
+            GameState.streak = 0;
+            GameState.coinsCollected = 0;
+            GameState.unlockedLevels = { 1: true, 2: false, 3: false };
+            GameState.crystals = { 1: false, 2: false, 3: false };
+            GameState.levelProgress = {
+                1: { solved: 0, total: 5 },
+                2: { solved: 0, total: 5 },
+                3: { solved: 0, total: 5 }
+            };
+            document.getElementById('victoryModal').classList.add('hidden');
+            loadLevelWorld(1);
+        };
+
+        document.getElementById('returnLevelSelectBtn').onclick = () => {
+            document.getElementById('victoryModal').classList.add('hidden');
+            document.getElementById('startModal').classList.remove('hidden');
+        };
+
+        function onWindowResize() {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        }
+
+        window.onload = () => {
+            init3D();
+        };
+    </script>
+</body>
+</html>
